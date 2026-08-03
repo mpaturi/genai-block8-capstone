@@ -20,7 +20,7 @@ import subprocess
 import sys
 
 from pinecone import Pinecone
-from pinecone.exceptions import NotFoundException
+from pinecone.exceptions import NotFoundException, PineconeException
 
 APP_DIR = "/app"
 
@@ -36,6 +36,16 @@ def index_is_populated() -> bool:
         pc.describe_index(index_name)
     except NotFoundException:
         return False
+    except PineconeException as exc:
+        # Covers everything else Pinecone can raise here (bad API key,
+        # unreachable service, etc.) - NotFoundException above is the
+        # only outcome that should trigger a bootstrap; anything else is
+        # a real problem the caller needs to fix, not something run_all.py
+        # can paper over, so this fails the same way run_all.py failing
+        # does: a one-line diagnostic and a non-zero exit, never a raw
+        # traceback.
+        print(f"[block4-entrypoint] Could not reach Pinecone - check PINECONE_API_KEY is valid ({type(exc).__name__}).")
+        sys.exit(1)
 
     index = pc.Index(name=index_name)
     stats = index.describe_index_stats()
