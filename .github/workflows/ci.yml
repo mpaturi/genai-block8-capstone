@@ -172,6 +172,12 @@ jobs:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       NEO4J_USER: ${{ secrets.NEO4J_USER }}
       NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+      # Tracing isn't part of this job's correctness gate. docker-compose.yml
+      # defaults LANGCHAIN_TRACING_V2 to true, which combined with no
+      # LANGCHAIN_API_KEY secret here would leave the app container
+      # running with tracing on and a blank key - turned off explicitly
+      # rather than assuming how the LangChain tracer fails in that case.
+      LANGCHAIN_TRACING_V2: "false"
     steps:
       - uses: actions/checkout@v4
 
