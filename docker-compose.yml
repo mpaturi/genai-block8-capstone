@@ -44,6 +44,16 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     ports:
       - "8001:8000"
+    healthcheck:
+      # Block 4's own /docs (FastAPI's auto-generated Swagger UI, always
+      # present, no code change needed there) - only responds once
+      # uvicorn is actually serving, not just once the entrypoint script
+      # has started (which can be mid-bootstrap for up to ~1 minute).
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
 
   app:
     build:
@@ -51,8 +61,10 @@ services:
       dockerfile: Dockerfile
     container_name: block8-app
     depends_on:
-      - rag-service
-      - graph-seed
+      rag-service:
+        condition: service_healthy
+      graph-seed:
+        condition: service_completed_successfully
     environment:
       - RAG_API_URL=http://rag-service:8000
       - NEO4J_URI=bolt://neo4j:7687
