@@ -25,30 +25,34 @@ per house rules.
 ## Phase 1 — Core app (branch: `phase-1-core-app`)
 
 - [ ] Branch off `main` in `genai-block8-capstone` as `phase-1-core-app`.
-- [ ] Verify: does Block 6's `run_multi_agent` signature, its import path
+      Deviation: branched off `phase-0-docs` instead - PR #1 (the docs)
+      was still open/unmerged at the time, so `main` had no `docs/` yet.
+- [x] Verify: does Block 6's `run_multi_agent` signature, its import path
       (the `block5_agent` pip package), and the `MultiAgentAnswer` shape
       still match what `spec.md` documents? Apply the verification rule
       above if not.
-- [ ] Decide FastAPI vs. CLI for the entry point — this is the one
+- [x] Decide FastAPI vs. CLI for the entry point — this is the one
       decision the spec deliberately left open until this point.
-- [ ] Pin `genai-block6-multiagent` to a specific reviewed commit in this
+- [x] Pin `genai-block6-multiagent` to a specific reviewed commit in this
       repo's dependency file, matching Block 6→Block 5's own pinning
       pattern — never a floating branch.
-- [ ] Write the entry point's contract tests first, before any
+- [x] Write the entry point's contract tests first, before any
       implementation: given a question, expect a structured answer
       (Block 6 mocked/stubbed for this phase — no containers yet); given
       Block 6 unreachable or raising, expect the defined clear-error
       response, not an exception. Run them and confirm they fail —
       proves they're actually testing something real.
-- [ ] Implement the entry point against those tests: accept a question,
+- [x] Implement the entry point against those tests: accept a question,
       call `run_multi_agent`, wrap the call in its own try/except per
       the spec's failure-handling section.
-- [ ] Run the tests again, confirm they pass, and confirm no other test
+- [x] Run the tests again, confirm they pass, and confirm no other test
       in the repo broke.
-- [ ] Commit the pinned dependency, the tests, and the implementation —
+- [x] Commit the pinned dependency, the tests, and the implementation —
       as separate commits if that stays clean, combined if splitting
       them adds no clarity (judgment call at implementation time).
-- [ ] Push, open PR against `main`.
+- [ ] Push, open PR against `main`. Deviation: PR #2 targets
+      `phase-0-docs`, not `main` - same reason as the branch-off note
+      above.
 
 ## Phase 2 — Containerization (branch: `phase-2-containerization`)
 
