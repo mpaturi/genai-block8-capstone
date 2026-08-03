@@ -77,6 +77,12 @@ services:
       - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-block8-capstone}
     ports:
       - "8000:8000"
+    volumes:
+      # Block 6's run_log.py (called on every run_multi_agent_async
+      # invocation) writes to data/eval/run_log.jsonl relative to its own
+      # cwd - bind-mounted to the host so observability/report.py can
+      # read it without needing to exec into the container.
+      - ./data:/app/data
 
 volumes:
   neo4j_data:

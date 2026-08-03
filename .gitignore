@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated run log (Block 6's run_log.py, bind-mounted from the app
+# container per docker-compose.yml) - not source code.
+data/eval/run_log.jsonl
