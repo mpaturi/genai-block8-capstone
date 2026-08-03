@@ -114,7 +114,9 @@ services:
     # lands on the host instead of only existing in the container's own
     # ephemeral filesystem - there was no volumes: entry here at all
     # before, so this file could never reach the host under any
-    # circumstances, regardless of user/permissions.
+    # circumstances, regardless of user/permissions. Also what lets
+    # observability/report.py read Block 6's orchestrator-level log
+    # without needing to exec into the container.
     volumes:
       - ./data:/app/data
     ports:

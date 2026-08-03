@@ -219,7 +219,8 @@ __marimo__/
 
 # Generated output from local/Docker runs - scripts/run_log.py's own
 # docstring already documents data/eval/run_log.jsonl as "isn't
-# committed (see .gitignore)", but nothing here actually covered it -
-# the app service's ./data bind mount now reliably fills this directory
-# with real run output on every docker compose up.
+# committed (see .gitignore)", but nothing here actually covered it
+# until the app service's ./data bind mount started reliably filling
+# this directory with real run output on every docker compose up
+# (Block 6's orchestrator-level log, what observability/report.py reads).
 /data/
