@@ -1,0 +1,26 @@
+# block6_multiagent is pinned to a commit on the not-yet-merged
+# add-pyproject-packaging branch (PR #11 against genai-block6-multiagent),
+# not that repo's main - main has no pyproject.toml yet, so it isn't
+# pip-installable at all. Bump this to main's HEAD commit once PR #11
+# merges there (see docs/spec.md's "Version bumps" section).
+block6_multiagent @ git+https://github.com/mpaturi/genai-block6-multiagent.git@7553ddf541445b7dba3ed6d6b3447e84a6af794f
+
+# Installed top-level import name is `scripts` (block6_multiagent's own
+# package directory name), not the distribution name above.
+
+# block6_multiagent's own pyproject.toml declares no dependencies (kept
+# deliberately minimal - packaging-only PR), so its runtime deps are
+# listed here explicitly, matching its own requirements.txt exactly.
+block5_agent @ git+https://github.com/mpaturi/genai-block5-agent.git@main
+langgraph==1.2.9
+langsmith==0.10.6
+anthropic==0.116.0
+pydantic==2.13.4
+neo4j==6.2.0
+requests==2.34.2
+python-dotenv==1.2.2
+
+# This repo's own entry point
+fastapi==0.139.0
+uvicorn==0.51.0
+pytest==9.1.1
