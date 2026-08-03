@@ -15,8 +15,9 @@ flowchart LR
     Clinical -->|POST /query| RAG["Block 4 RAG service<br/>(container, this repo's Dockerfile)"]
     RAG --> Pinecone[("Pinecone<br/>external, self-bootstrapped\non first container start")]
     RAG --> Claude[("Anthropic Claude")]
-    Clinical -->|Cypher| Neo4j[("Neo4j<br/>(container, seeded from\nBlock 3's committed CSVs)")]
+    Clinical -->|Cypher| Neo4j[("Neo4j<br/>(container)")]
     Cohort -->|Cypher| Neo4j
+    GraphSeed["graph-seed<br/>(one-shot container,<br/>Block 3's load_graph.py,<br/>pinned commit)"] -->|seeds on every startup| Neo4j
     App -.->|traces| LangSmith[("LangSmith")]
 ```
 
