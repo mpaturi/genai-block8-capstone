@@ -65,7 +65,12 @@ per house rules.
       point, built on the pinned Block 6 commit).
 - [ ] Write a `Dockerfile` for Block 4, built from a pinned
       `genai-block4-rag-eval` commit — lives in this repo, not added to
-      Block 4's.
+      Block 4's. On first container startup, run Block 4's own
+      idempotent `run_all.py` (`check_connection` → `create_index` →
+      `ingest` → `verify`) against the caller's own `PINECONE_API_KEY`/
+      `PINECONE_INDEX_NAME`, so a fresh clone builds its own populated
+      index instead of needing one that already exists. Decide whether
+      this runs on every start or only when the index is found empty.
 - [ ] Write the Neo4j service definition, seeded on first startup by
       re-running Block 3's confirmed-idempotent `load_graph.py` (pinned
       commit) against the committed CSVs.
@@ -78,7 +83,9 @@ per house rules.
       ask a real question through the running compose stack, get a real
       answer, confirming the whole chain works end to end, not just
       Block 8's own code in isolation (Phase 1's mocked tests couldn't
-      cover this).
+      cover this). Confirm retrieval actually returns real results, not
+      just a well-formed "I don't know" that would mask an unpopulated
+      or unreachable Pinecone index.
 - [ ] Run the integration tests, confirm they pass.
 - [ ] Commit the Dockerfiles and compose config as one logical change,
       the integration tests as a separate commit.
@@ -90,17 +97,18 @@ per house rules.
       the compose stack Phase 2 built.
 - [ ] Branch off `main` in `genai-block8-capstone` as
       `phase-3-ci-observability-readme`.
-- [ ] Check how Block 5's own CI currently supplies secrets for its
-      LLM/Neo4j/Pinecone-dependent tests, and mirror that pattern for
-      this repo's GitHub Actions secrets rather than inventing a new
-      approach.
+- [ ] Confirm Block 5 and Block 6's existing suites still run stubbed
+      (`USE_RAG_FIXTURES`, `USE_STUB_ANSWER_FN` or equivalent) in their
+      own CI, matching what's already confirmed — no live secrets
+      needed to re-run them here.
 - [ ] Write the GitHub Actions workflow: re-run Block 5 and Block 6's
-      existing test/eval suites against this repo's pinned commits, plus
-      Phase 2's integration tests against the compose stack. Decide
-      trigger scope (every push, or only `main`/PRs) factoring in that
-      the eval suite makes real, paid LLM calls — this isn't just a time
-      cost.
-- [ ] Add the required secrets in the repo's GitHub Actions settings.
+      existing test/eval suites stubbed, on every push (cheap, no live
+      calls, no cost concern). Plus Phase 2's integration tests against
+      the compose stack, using real secrets — decide that test's trigger
+      scope (every push, or only `main`/PRs) since it's the one piece
+      that costs real money per run.
+- [ ] Add the required secrets in the repo's GitHub Actions settings —
+      only needed for the one integration test that hits the real stack.
 - [ ] Run the workflow, confirm it passes — then deliberately break one
       test or eval score and confirm the build actually fails, proving
       the gate works rather than just appearing green.

@@ -35,17 +35,24 @@ FastAPI server (`scripts/api.py`, single route `POST /query`, started
 with `uvicorn scripts.api:app` from the repo root) but no Dockerfile or
 container config of any kind today — it's a bare local Python process.
 It needs three env vars (`PINECONE_API_KEY`, `PINECONE_INDEX_NAME`,
-`ANTHROPIC_API_KEY`) and a Pinecone index that's already been built and
-populated by a separate one-time script (`create_index.py` +
-`ingest.py`) — `api.py` does not build the index itself. Pinecone is a
-hosted service, not something this repo containerizes; Block 8 just
-needs valid credentials pointing at an already-populated index, same
-category as the LLM API key.
+`ANTHROPIC_API_KEY`) and a populated Pinecone index — `api.py` does not
+build the index itself, but `genai-block4-rag-eval` already has a
+script that does: `run_all.py` chains `check_connection` →
+`create_index` → `ingest` → `verify`, and `ingest` is delete-and-reload
+idempotent, safe to run more than once. Pinecone the hosted service
+stays external — nothing to be done about that — but the requirement
+this repo places on anyone running it changes from "bring an
+already-populated index" to "bring your own Pinecone API key," the same
+low bar as the LLM API key.
 
 The Block 4 container is built from a pinned `genai-block4-rag-eval`
 commit, via a Dockerfile written and owned by this repo — not added to
-Block 4's own repo, to avoid reopening an already-reviewed block.
-`RAG_API_URL` points to the Block 4 service's in-network name.
+Block 4's own repo, to avoid reopening an already-reviewed block. On
+first startup, the container runs Block 4's own `run_all.py` against
+whatever `PINECONE_API_KEY`/`PINECONE_INDEX_NAME` the caller supplies,
+so a fresh clone builds and populates its own index rather than
+depending on one that already exists. `RAG_API_URL` points to the
+Block 4 service's in-network name.
 
 **Confirmed on the Neo4j side:** unlike Pinecone, Neo4j is not a hosted
 service here — it runs as a local Docker container
@@ -64,6 +71,18 @@ So `docker-compose.yml` needs three services: the Block 8 app container,
 a Block 4 container (built from a pinned commit, Dockerfile owned by
 this repo), and a Neo4j container seeded by re-running Block 3's pinned,
 idempotent `load_graph.py` on first startup.
+
+**Version bumps:** the three pins don't all live in the same place, so
+they don't all bump the same way. Block 6's pin lives in this repo's
+dependency file (pip), bumped the same way the Block 6→Block 5 pin was
+already handled — a one-line change, tested, committed. Block 4 and
+Block 3's pins live inside their respective Dockerfiles/compose config,
+since they're built as containers here rather than installed as
+packages — bumping either means updating the pinned commit reference
+where the Dockerfile checks it out or clones it, then rebuilding and
+re-running the integration tests before merging, since a stale
+Dockerfile-level pin won't surface as a dependency-resolution error the
+way a stale pip pin would.
 
 This repo's own code is the glue: an entry point, deployment config,
 CI/CD, and the observability layer. No new agent logic, no new tools, no
@@ -91,10 +110,15 @@ Matches the block's acceptance criteria directly:
   against the real three-service compose stack). Block 8 does not
   re-test agent or retrieval logic that's already tested in its own
   repo; a regression in either layer fails the build, same rule Block 5
-  already established. CI needs its own secrets (GitHub Actions repo
-  secrets, not the local `.env` file) to run live LLM/Neo4j/Pinecone
-  calls — confirm and mirror whatever pattern Block 5's own CI already
-  uses for this, rather than inventing a new one.
+  already established. The reused Block 5/6 suites need no live secrets
+  at all — both already run with stub/fixture flags
+  (`USE_RAG_FIXTURES`, `USE_STUB_ANSWER_FN`) specifically so their CI
+  makes no paid calls, confirmed in their own code, and this repo's CI
+  reuses that same setup rather than inventing one. Only the new
+  integration test genuinely needs live secrets (GitHub Actions repo
+  secrets, not the local `.env` file), since it has to hit the real
+  assembled stack — a cheap gate on every push, plus one deliberately
+  reserved real test, not a tradeoff between cost and coverage.
 - Observability: reuse Block 5/6's existing LangSmith tracing as-is for
   per-run traces. Add one lightweight custom view (a script or simple
   page, not a new platform) that pulls together what already exists —
@@ -146,16 +170,20 @@ ends up being a CLI — the exact form follows whichever the plan/tasks
 stage decides). This is a new, small piece of error handling that
 belongs to this repo, not a duplicate of Block 6's.
 
-**Reproducibility caveat:** Neo4j is fully self-contained — its own
-container, seeded fresh from committed CSVs on first startup, no
-external instance required. Pinecone is the one remaining external
-dependency: it's a hosted service, so the container still needs
-`PINECONE_API_KEY`/`PINECONE_INDEX_NAME` pointing at an index that's
-already been built and populated (a separate one-time step, not
-something this repo does). If that index isn't reachable, the container
-still runs but returns empty/degraded retrieval results, same as Block
-4's own "returns 'I don't know' when retrieval is empty" behavior. This
-is stated plainly here rather than implied.
+**Reproducibility caveat:** both Neo4j and Pinecone are now
+self-contained in the sense that matters — Neo4j's container seeds
+itself fresh from committed CSVs, and Block 4's container builds and
+populates its own Pinecone index on first startup via Block 4's own
+`run_all.py`, using whatever key the caller supplies. Pinecone the
+hosted service is still an external dependency in the literal sense
+(this repo doesn't run it), but a fresh clone with a valid Pinecone API
+key gets a genuinely working stack, not a degraded one — closing the
+gap where "reproducible" was previously true for Neo4j but not for
+Pinecone. If the bootstrap step turns out too slow to run on every
+container start, the fallback is to check once at startup whether the
+index is populated and fail with a clear error if it isn't, rather than
+starting and silently returning degraded retrieval results that look
+like a normal "I don't know" answer.
 
 **Test-first:** matching prior blocks' practice, the entry point's
 contract tests are written before the entry point itself — given a
@@ -189,12 +217,15 @@ and the OMOP CSV source data) have all been confirmed against real code
 and are folded into Section 1. What remains open:
 
 - Confirm exact CI/CD trigger scope (every push to any branch, or only
-  to `main`/PRs) once GitHub Actions config is drafted — factor in that
-  the eval suite makes real, paid LLM calls, so triggering it on every
-  branch push has a real cost, not just a time cost.
-- Confirm how Block 5's own CI currently supplies secrets for its LLM/
-  Neo4j/Pinecone-dependent tests, and mirror that pattern for this
-  repo's GitHub Actions secrets rather than inventing a new approach.
+  to `main`/PRs) once GitHub Actions config is drafted. Cost is no
+  longer the deciding factor for the reused Block 5/6 suites (they run
+  stubbed, no live calls) — only the new integration test's live calls
+  need a deliberate trigger-scope decision.
+- Confirm whether the Pinecone bootstrap runs on every container start
+  (simplest, safe since `ingest` is idempotent, but slower) or only
+  when the index is first detected as empty (faster, more moving
+  parts) — decide at Phase 2's start based on how slow a full re-ingest
+  actually is in practice.
 - Confirm whether the custom observability view is a static script run
   on demand or a small always-on page — decided at the start of the
   phase that builds it, based on how much is actually worth building

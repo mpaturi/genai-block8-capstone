@@ -38,8 +38,12 @@ acceptance criteria, in isolation from containerization.
 Three things: a `Dockerfile` for this repo's own app (Phase 1's entry
 point, built on the pinned Block 6 commit); a `Dockerfile` for Block 4,
 built from a pinned `genai-block4-rag-eval` commit — written and owned
-here, not added to Block 4's repo; and a Neo4j service definition seeded
-on first startup by re-running Block 3's confirmed-idempotent
+here, not added to Block 4's repo. On first container startup, it runs
+Block 4's own idempotent `run_all.py` (check connection, create index,
+ingest, verify) against whatever Pinecone key the caller supplies, so a
+fresh clone builds its own populated index instead of depending on one
+that already exists; and a Neo4j service definition
+seeded on first startup by re-running Block 3's confirmed-idempotent
 `load_graph.py` against a pinned Block 3 commit's committed CSVs. One
 `docker-compose.yml` wires all three together, with `RAG_API_URL` and
 `NEO4J_URI` pointing at the in-network service names, and credentials
@@ -48,19 +52,21 @@ ones Phase 1's mocked tests couldn't cover — run against the real
 three-service stack: ask a real question, get a real answer, confirm
 the whole chain works, not just Block 8's own code in isolation.
 Satisfies "runs end-to-end from one command" and the "reproducible
-container" acceptance criterion for real, plus the reproducibility
-caveat already stated in the spec (Neo4j self-contained, Pinecone
-external).
+container" acceptance criterion for real, with both Neo4j and Pinecone
+now genuinely self-contained per the spec's reproducibility caveat.
 
 **Phase 3 — CI/CD, observability, README.** Depends on Phase 2 having
 merged — CI's integration tests need the compose stack Phase 2 built,
 and the README documents the finished thing, not a plan of it. GitHub
 Actions workflow: re-runs Block 5 and Block 6's existing test/eval
-suites against this repo's pinned commits (proving those commits are
-healthy), plus Phase 2's new integration tests (proving the assembled
-stack works) — trigger scope and secrets pattern confirmed against how
-Block 5's own CI already does this, not invented fresh, per the spec's
-open follow-ups. The lightweight observability view: reuses LangSmith
+suites against this repo's pinned commits, stubbed the same way those
+suites already run in their own CI (`USE_RAG_FIXTURES`,
+`USE_STUB_ANSWER_FN`) — no live secrets needed, and this proves
+combining dependencies here didn't break anything, cheap enough to run
+on every push. Only Phase 2's new integration tests need real secrets,
+since they hit the actual assembled stack — trigger scope for that one
+decided here, not invented fresh, per the spec's open follow-ups. The
+lightweight observability view: reuses LangSmith
 as-is, adds one small script or page surfacing Block 5's cost/token
 logging and Block 7's query-size/runtime/retry signals — decided at
 this phase's start whether that's a static script or a small always-on
@@ -78,8 +84,11 @@ PR — same discipline as the Block 6 pin-bump phase in Block 7's plan.
 
 ## 4. What doesn't get its own phase
 
-Deciding FastAPI vs. CLI, deciding the observability view's exact
-shape, and confirming the CI secrets pattern are all small decisions
+Deciding FastAPI vs. CLI, deciding whether the Pinecone bootstrap runs
+on every container start or only when the index is found empty,
+deciding the observability view's exact shape, and confirming the CI
+secrets pattern for the one integration test that needs real ones are
+all small decisions
 made at the start of the phase they belong to, not separate phases —
 matching how Block 7's plan handled small in-phase decisions. Repo
 pinning on the GitHub profile is a one-line last step folded into
