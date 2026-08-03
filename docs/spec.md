@@ -221,17 +221,28 @@ and are folded into Section 1. What remains open:
   longer the deciding factor for the reused Block 5/6 suites (they run
   stubbed, no live calls) — only the new integration test's live calls
   need a deliberate trigger-scope decision.
+  **Resolved (Phase 3):** the reused Block 5/6 suites run on every push;
+  the live-secrets integration test only runs on a push to `main` or a
+  PR targeting `main` — reasoning stated in that phase's PR.
 - Confirm whether the Pinecone bootstrap runs on every container start
   (simplest, safe since `ingest` is idempotent, but slower) or only
   when the index is first detected as empty (faster, more moving
   parts) — decide at Phase 2's start based on how slow a full re-ingest
   actually is in practice.
+  **Resolved (Phase 2):** only when the index is found empty or missing
+  — decided from an actual measurement, not an estimate: a cold
+  bootstrap of the real dataset took about a minute end to end.
 - Confirm whether the custom observability view is a static script run
   on demand or a small always-on page — decided at the start of the
   phase that builds it, based on how much is actually worth building
   versus just querying LangSmith directly.
+  **Resolved (Phase 3):** a static script (`observability/report.py`).
+  Reasoning: single-operator project, no one else needs concurrent or
+  real-time access to a handful of aggregate numbers.
 - Confirm the exact list of required `.env` variables once the entry
   point's actual credential needs are known.
+  **Resolved (Phase 3):** documented in `README.md`'s required-variables
+  table, with where to get each one.
 
 ## 6. Related documents
 
