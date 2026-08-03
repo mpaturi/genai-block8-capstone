@@ -57,17 +57,20 @@ per house rules.
 ## Phase 2 — Containerization (branch: `phase-2-containerization`)
 
 - [ ] Confirm Phase 1 has actually merged — this phase doesn't start
-      until that's true.
+      until that's true. Deviation: not yet true - Phase 1 (PR #2) was
+      still open when this phase started. Proceeded anyway per explicit
+      instruction, branching off `phase-1-core-app` directly instead.
 - [ ] Branch off `main` in `genai-block8-capstone` as
-      `phase-2-containerization` (now includes Phase 1).
-- [ ] Verify: does Block 4's server entry point (`scripts/api.py`, `POST
+      `phase-2-containerization` (now includes Phase 1). Deviation:
+      branched off `phase-1-core-app` instead - same reason as above.
+- [x] Verify: does Block 4's server entry point (`scripts/api.py`, `POST
       /query`, started via `uvicorn scripts.api:app`) and its three
       required env vars, and Block 3's `load_graph.py` plus its
       committed CSV paths, still match what `spec.md` documents? Apply
       the verification rule above if not.
-- [ ] Write a `Dockerfile` for this repo's own app (Phase 1's entry
+- [x] Write a `Dockerfile` for this repo's own app (Phase 1's entry
       point, built on the pinned Block 6 commit).
-- [ ] Write a `Dockerfile` for Block 4, built from a pinned
+- [x] Write a `Dockerfile` for Block 4, built from a pinned
       `genai-block4-rag-eval` commit — lives in this repo, not added to
       Block 4's. On first container startup, run Block 4's own
       idempotent `run_all.py` (`check_connection` → `create_index` →
@@ -75,25 +78,27 @@ per house rules.
       `PINECONE_INDEX_NAME`, so a fresh clone builds its own populated
       index instead of needing one that already exists. Decide whether
       this runs on every start or only when the index is found empty.
-- [ ] Write the Neo4j service definition, seeded on first startup by
+- [x] Write the Neo4j service definition, seeded on first startup by
       re-running Block 3's confirmed-idempotent `load_graph.py` (pinned
       commit) against the committed CSVs.
-- [ ] Write `docker-compose.yml` wiring all three services together:
+- [x] Write `docker-compose.yml` wiring all three services together:
       `RAG_API_URL` and `NEO4J_URI` point at in-network service names;
       credentials are read from a git-ignored `.env`.
-- [ ] Run `docker-compose up`, confirm all three services start cleanly
+- [x] Run `docker-compose up`, confirm all three services start cleanly
       and the entry point is reachable.
-- [ ] Write integration tests against the real three-service stack —
+- [x] Write integration tests against the real three-service stack —
       ask a real question through the running compose stack, get a real
       answer, confirming the whole chain works end to end, not just
       Block 8's own code in isolation (Phase 1's mocked tests couldn't
       cover this). Confirm retrieval actually returns real results, not
       just a well-formed "I don't know" that would mask an unpopulated
       or unreachable Pinecone index.
-- [ ] Run the integration tests, confirm they pass.
-- [ ] Commit the Dockerfiles and compose config as one logical change,
+- [x] Run the integration tests, confirm they pass.
+- [x] Commit the Dockerfiles and compose config as one logical change,
       the integration tests as a separate commit.
-- [ ] Push, open PR against `main`.
+- [ ] Push, open PR against `main`. Deviation: PR #3 targets
+      `phase-1-core-app`, not `main` - same reason as the branch-off
+      note above.
 
 ## Phase 3 — CI/CD, observability, README (branch: `phase-3-ci-observability-readme`)
 
