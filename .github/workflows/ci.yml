@@ -67,11 +67,11 @@ jobs:
           NEO4J_DATABASE: neo4j
         run: python -m block5_agent.run_eval
 
-  # Same idea as block5-suite, for Block 6. Checks out the exact commit
-  # this repo's requirements.txt currently pins (the provisional
-  # add-pyproject-packaging branch, not genai-block6-multiagent's main -
-  # see requirements.txt's own comment and Phase 1's PR description) so
-  # the test code matches the installed code exactly.
+  # Same idea as block5-suite, for Block 6. Parses the pinned commit out
+  # of requirements.txt itself (the provisional add-pyproject-packaging
+  # branch, not genai-block6-multiagent's main - see requirements.txt's
+  # own comment and Phase 1's PR description) rather than hardcoding it a
+  # second time here, so the two can't silently drift apart.
   block6-suite:
     runs-on: ubuntu-latest
     services:
@@ -91,11 +91,21 @@ jobs:
       - name: Install this repo's combined dependency set
         run: pip install -r requirements.txt
 
+      - name: Parse pinned Block 6 commit from requirements.txt
+        id: block6-pin
+        run: |
+          commit=$(sed -n 's|^block6_multiagent @ git+https://github.com/mpaturi/genai-block6-multiagent.git@\(.*\)$|\1|p' requirements.txt)
+          if [ -z "$commit" ]; then
+            echo "Could not parse block6_multiagent's pinned commit out of requirements.txt" >&2
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
       - name: Checkout genai-block6-multiagent (for its tests/data, not its deps)
         uses: actions/checkout@v4
         with:
           repository: mpaturi/genai-block6-multiagent
-          ref: 7553ddf541445b7dba3ed6d6b3447e84a6af794f
+          ref: ${{ steps.block6-pin.outputs.commit }}
           path: block6-multiagent-src
 
       - name: Load CI graph seed
