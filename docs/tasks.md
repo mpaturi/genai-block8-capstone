@@ -103,36 +103,48 @@ per house rules.
 ## Phase 3 — CI/CD, observability, README (branch: `phase-3-ci-observability-readme`)
 
 - [ ] Confirm Phase 2 has actually merged — CI's integration tests need
-      the compose stack Phase 2 built.
+      the compose stack Phase 2 built. Deviation: not yet true - Phase 2
+      (PR #3) was still open when this phase started. Proceeded anyway
+      per explicit instruction, branching off `phase-2-containerization`
+      directly instead.
 - [ ] Branch off `main` in `genai-block8-capstone` as
-      `phase-3-ci-observability-readme`.
-- [ ] Confirm Block 5 and Block 6's existing suites still run stubbed
+      `phase-3-ci-observability-readme`. Deviation: branched off
+      `phase-2-containerization` instead - same reason as above.
+- [x] Confirm Block 5 and Block 6's existing suites still run stubbed
       (`USE_RAG_FIXTURES`, `USE_STUB_ANSWER_FN` or equivalent) in their
       own CI, matching what's already confirmed — no live secrets
       needed to re-run them here.
-- [ ] Write the GitHub Actions workflow: re-run Block 5 and Block 6's
+- [x] Write the GitHub Actions workflow: re-run Block 5 and Block 6's
       existing test/eval suites stubbed, on every push (cheap, no live
       calls, no cost concern). Plus Phase 2's integration tests against
       the compose stack, using real secrets — decide that test's trigger
       scope (every push, or only `main`/PRs) since it's the one piece
       that costs real money per run.
-- [ ] Add the required secrets in the repo's GitHub Actions settings —
+- [x] Add the required secrets in the repo's GitHub Actions settings —
       only needed for the one integration test that hits the real stack.
-- [ ] Run the workflow, confirm it passes — then deliberately break one
+- [x] Run the workflow, confirm it passes — then deliberately break one
       test or eval score and confirm the build actually fails, proving
       the gate works rather than just appearing green.
-- [ ] Decide the observability view's shape (static script run on
+- [x] Decide the observability view's shape (static script run on
       demand, or a small always-on page) and build it: reuse LangSmith
       as-is for traces, surface Block 5's existing cost/token logging
       and Block 7's query-size/runtime/retry signals in one place — no
-      new tracking logic, just surfacing what already exists.
-- [ ] Write the README: architecture diagram, this spec and plan linked
+      new tracking logic, just surfacing what already exists. Partial:
+      Block 7's signals aren't included - confirmed against Block 7's
+      real repo that no such logging exists yet anywhere to surface (see
+      spec.md §5). Only Block 5's cost/token logging is surfaced; Block
+      7's signals are a "what I'd do next" item in the README.
+- [x] Write the README: architecture diagram, this spec and plan linked
       or embedded, a link to Block 7's `SECURITY.md` as "the threat
       model," an "AI-assisted workflow" note (where AI helped, where it
       was corrected, what was decided and why), a "what I'd do next"
       section, and the exact list of required `.env` variables with
-      where to get each one.
+      where to get each one. Partial: the Block 7 `SECURITY.md` link is
+      a clearly marked placeholder, not a real link - Block 7 isn't
+      finished yet, so there's nothing real to link to.
 - [ ] Pin the repo on the GitHub profile.
-- [ ] Commit the CI/CD config, the observability view, and the README as
+- [x] Commit the CI/CD config, the observability view, and the README as
       separate commits — three different concerns sharing one phase.
-- [ ] Push, open PR against `main`.
+- [ ] Push, open PR against `main`. Deviation: PR #4 targets
+      `phase-2-containerization`, not `main` - same reason as the
+      branch-off note above.
