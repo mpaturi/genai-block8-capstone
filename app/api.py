@@ -124,6 +124,16 @@ async def query(request: QueryRequest):
         logger.exception("run_multi_agent_async failed")
         return _service_unavailable_response()
 
+    # Live-tested (not just mocked): whether a real downstream outage
+    # surfaces here as both_failed (503, this branch) or as a degraded-
+    # but-real 200 depends on whether the specific question's RAG search
+    # happens to find any patients before the clinical agent's own
+    # RAG-first flow ever reaches Neo4j - not visible from reading this
+    # file alone. Confirmed by stopping neo4j mid-session against two
+    # different questions: one where RAG found zero matches (clinical
+    # agent never touched Neo4j at all, only the cohort agent failed -
+    # 200, clinical_only_degraded) and one matching real patients (both
+    # agents needed Neo4j, both failed - 503, both_failed, this branch).
     if answer.mode == "both_failed":
         # This check guards the exact string "both_failed" only - if
         # Block 6 ever introduces a second catastrophic-failure mode
