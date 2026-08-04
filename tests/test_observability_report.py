@@ -64,8 +64,8 @@ def _write_fixture(tmp_path):
 def test_print_report_skips_malformed_and_incomplete_lines(tmp_path, capsys):
     log_path = _write_fixture(tmp_path)
 
-    runs = load_runs(log_path)
-    print_report(runs)
+    runs, total_line_count = load_runs(log_path)
+    print_report(runs, total_line_count)
 
     output = capsys.readouterr().out
 
@@ -76,9 +76,12 @@ def test_print_report_skips_malformed_and_incomplete_lines(tmp_path, capsys):
     assert "[warn] skipping run" in output
     assert "cost_usd" in output
 
-    # Aggregates computed only from the two complete, valid runs -
-    # the missing-field run's absent cost_usd must not silently default
-    # to 0 and understate the total without a warning.
-    assert "Runs logged: 2" in output
+    # Aggregates computed only from the two complete, valid runs - the
+    # missing-field run's absent cost_usd must not silently default to 0
+    # and understate the total without a warning. The summary line shows
+    # total-vs-usable explicitly: 2 usable out of the fixture's 4 real
+    # lines (2 valid + 1 missing-field + 1 malformed), not just the
+    # post-filter count on its own.
+    assert "Runs logged: 2 (of 4 total)" in output
     assert "Total cost:  $0.030000" in output
     assert "Total tokens: 110" in output

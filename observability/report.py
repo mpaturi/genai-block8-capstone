@@ -37,18 +37,25 @@ LOG_PATH = Path("data/eval/run_log.jsonl")
 REQUIRED_FIELDS = ("cost_usd", "tokens", "latency_ms", "mode", "confidence", "discrepancy_flag")
 
 
-def load_runs(log_path: Path) -> list[dict]:
+def load_runs(log_path: Path) -> tuple[list[dict], int]:
+    """Returns (runs, total_line_count) - total_line_count is every
+    non-blank line actually read, whether it parsed as JSON or not, so
+    print_report() can show total-vs-usable ("N of M total") rather than
+    just the post-filter count on its own.
+    """
     if not log_path.exists():
         print(f"No runs logged yet - {log_path} does not exist.")
         print("Run `docker-compose up` and send at least one /query request first.")
         sys.exit(1)
 
     runs = []
+    total_line_count = 0
     with log_path.open(encoding="utf-8") as f:
         for line_number, line in enumerate(f, start=1):
             line = line.strip()
             if not line:
                 continue
+            total_line_count += 1
             try:
                 runs.append(json.loads(line))
             except json.JSONDecodeError:
@@ -58,7 +65,7 @@ def load_runs(log_path: Path) -> list[dict]:
         print(f"{log_path} exists but has no valid entries yet.")
         sys.exit(1)
 
-    return runs
+    return runs, total_line_count
 
 
 def _valid_runs(runs: list[dict]) -> list[dict]:
@@ -79,7 +86,7 @@ def _valid_runs(runs: list[dict]) -> list[dict]:
     return valid
 
 
-def print_report(runs: list[dict]) -> None:
+def print_report(runs: list[dict], total_line_count: int) -> None:
     runs = _valid_runs(runs)
     total_cost = sum(run["cost_usd"] for run in runs)
     total_tokens = sum(run["tokens"] for run in runs)
@@ -94,7 +101,7 @@ def print_report(runs: list[dict]) -> None:
         if run["discrepancy_flag"]:
             discrepancy_count += 1
 
-    print(f"Runs logged: {len(runs)}")
+    print(f"Runs logged: {len(runs)} (of {total_line_count} total)")
     print(f"Total cost:  ${total_cost:.6f}")
     print(f"Total tokens: {total_tokens}")
     print(f"Latency (ms): mean={statistics.mean(latencies):.1f}, "
@@ -110,4 +117,4 @@ def print_report(runs: list[dict]) -> None:
 
 
 if __name__ == "__main__":
-    print_report(load_runs(LOG_PATH))
+    print_report(*load_runs(LOG_PATH))
