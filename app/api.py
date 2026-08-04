@@ -15,7 +15,7 @@ import logging
 from block5_agent.schemas import QuestionInput
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from scripts.orchestrator import run_multi_agent_async
 
 app = FastAPI()
@@ -44,12 +44,39 @@ REQUEST_TIMEOUT_SECONDS = 180
 
 
 class QueryRequest(QuestionInput):
-    """QuestionInput's fields, plus this repo's own blank-string check.
+    """QuestionInput's fields, plus this repo's own blank-string check and
+    bounds on every field.
 
-    QuestionInput itself (Block 5's schema, reused as-is) has no such
-    check - every value crossing this repo's own boundary must be
-    validated before use, per this project's input-validation rule.
+    QuestionInput itself (Block 5's schema, reused as-is) has neither -
+    every value crossing this repo's own boundary must be validated
+    before use, per this project's input-validation rule. Bounds matter
+    here specifically because build_rag_query()/assemble_question_text()
+    (block5_agent.schemas) f-string condition/lab/drug_a/drug_b straight
+    into text that reaches an LLM prompt (and, for condition/lab, a
+    Pinecone-embedded RAG query) on every request - an unbounded caller
+    string is unbounded prompt-injection surface on every single call.
+
+    max_length=200 for condition, 100 for lab/drug_a/drug_b: real
+    clinical condition names/phrases run longer than single lab or drug
+    names (e.g. compound SNOMED-style descriptions), so condition gets a
+    wider allowance; both limits are many times longer than any real
+    entry in Block 3's graph vocabulary (scripts.vocabulary_check),
+    generous for genuine clinical terms while still closing off
+    multi-megabyte payloads.
+
+    value: ge=0 (every lab this system knows - scripts.cohort_tool's
+    LAB_PROPERTY_NAMES - is a non-negative measurement; a negative value
+    can never match a real patient), le=10_000 (comfortably above any
+    real unit in use - HbA1c tops out near 20, systolic BP near 300,
+    glucose in the low thousands mg/dL at the extreme - while still
+    rejecting a deliberately absurd float before it reaches a prompt).
     """
+
+    condition: str = Field(max_length=200)
+    lab: str = Field(max_length=100)
+    drug_a: str = Field(max_length=100)
+    drug_b: str = Field(max_length=100)
+    value: float = Field(ge=0, le=10_000)
 
     @field_validator("condition", "lab", "drug_a", "drug_b")
     @classmethod

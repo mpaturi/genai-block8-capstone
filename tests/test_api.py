@@ -8,6 +8,7 @@ Block 6 itself works (that's proven in Block 6's own repo).
 """
 import asyncio
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.api import SERVICE_UNAVAILABLE_MESSAGE, app
@@ -157,5 +158,49 @@ def test_query_rejects_blank_condition_before_calling_block6(monkeypatch):
     monkeypatch.setattr("app.api.run_multi_agent_async", fail_if_called)
 
     response = client.post("/query", json={**VALID_QUESTION_PAYLOAD, "condition": "   "})
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("field_name,max_length", [
+    ("condition", 200),
+    ("lab", 100),
+    ("drug_a", 100),
+    ("drug_b", 100),
+])
+def test_query_rejects_string_field_exceeding_max_length(monkeypatch, field_name, max_length):
+    # Unbounded caller text reaches an LLM prompt on every request
+    # (build_rag_query/assemble_question_text f-string these fields
+    # straight in) - a max_length is the cheapest way to close that off
+    # before it ever leaves this boundary.
+    def fail_if_called(question):
+        raise AssertionError("run_multi_agent_async should not be called for invalid input")
+
+    monkeypatch.setattr("app.api.run_multi_agent_async", fail_if_called)
+
+    oversized_value = "a" * (max_length + 1)
+    response = client.post("/query", json={**VALID_QUESTION_PAYLOAD, field_name: oversized_value})
+
+    assert response.status_code == 422
+
+
+def test_query_rejects_value_exceeding_max_bound(monkeypatch):
+    def fail_if_called(question):
+        raise AssertionError("run_multi_agent_async should not be called for invalid input")
+
+    monkeypatch.setattr("app.api.run_multi_agent_async", fail_if_called)
+
+    response = client.post("/query", json={**VALID_QUESTION_PAYLOAD, "value": 10_001})
+
+    assert response.status_code == 422
+
+
+def test_query_rejects_negative_value(monkeypatch):
+    def fail_if_called(question):
+        raise AssertionError("run_multi_agent_async should not be called for invalid input")
+
+    monkeypatch.setattr("app.api.run_multi_agent_async", fail_if_called)
+
+    response = client.post("/query", json={**VALID_QUESTION_PAYLOAD, "value": -1})
 
     assert response.status_code == 422
