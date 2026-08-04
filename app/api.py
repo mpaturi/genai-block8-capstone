@@ -9,6 +9,7 @@ side by side.
 
 Run with: uvicorn app.api:app --reload (from the repo root).
 """
+import asyncio
 import logging
 
 from block5_agent.schemas import QuestionInput
@@ -26,6 +27,20 @@ logger = logging.getLogger(__name__)
 SERVICE_UNAVAILABLE_MESSAGE = (
     "The multi-agent service is temporarily unavailable. Please try again shortly."
 )
+
+# Nothing else bounds total request time. Block 6's own 150s
+# (scripts.orchestrator._BRANCH_TIMEOUT_SECONDS) covers only the
+# clinical/cohort branches, which run concurrently - not reconcile_node,
+# which runs after both branches join and can itself call the live
+# get_known_vocabulary() Cypher query (no query-level timeout there,
+# unlike the rest of scripts/cohort_tool.py - flagged upstream as a
+# follow-up, not fixed here). 180s = 150s branch ceiling + a 30s buffer
+# for reconcile_node's own work. That buffer is not a guarantee the
+# vocabulary query finishes in 30s if it's genuinely wedged - it isn't -
+# but this wait_for's outer bound still guarantees the caller gets a 503
+# by 180s instead of hanging forever, which is the actual gap being
+# closed here.
+REQUEST_TIMEOUT_SECONDS = 180
 
 
 class QueryRequest(QuestionInput):
@@ -62,7 +77,12 @@ async def query(request: QueryRequest):
     # QueryRequest already subclasses QuestionInput, so request already
     # is one - no re-derivation needed before passing it on.
     try:
-        answer = await run_multi_agent_async(request)
+        answer = await asyncio.wait_for(
+            run_multi_agent_async(request), timeout=REQUEST_TIMEOUT_SECONDS
+        )
+    except asyncio.TimeoutError:
+        logger.error("run_multi_agent_async exceeded %ss", REQUEST_TIMEOUT_SECONDS)
+        return _service_unavailable_response()
     except Exception:
         logger.exception("run_multi_agent_async failed")
         return _service_unavailable_response()

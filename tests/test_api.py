@@ -6,6 +6,8 @@ entry point wires into run_multi_agent_async correctly and handles its
 failure the way the spec's failure-handling section requires, not that
 Block 6 itself works (that's proven in Block 6's own repo).
 """
+import asyncio
+
 from fastapi.testclient import TestClient
 
 from app.api import SERVICE_UNAVAILABLE_MESSAGE, app
@@ -123,6 +125,28 @@ def test_query_returns_503_not_a_raw_exception_when_block6_raises(monkeypatch):
     # app/api.py) - the response body itself must not leak an internal
     # exception class name like "ConnectionError" or "AuthenticationError"
     # to the caller, the outermost boundary a user actually touches.
+    assert response.json() == {"error": SERVICE_UNAVAILABLE_MESSAGE}
+
+
+def test_query_returns_503_when_run_multi_agent_async_hangs_past_the_timeout(monkeypatch):
+    # Nothing otherwise bounds total request time: Block 6's own 150s
+    # branch ceiling only covers the clinical/cohort branches, not
+    # reconcile_node (which runs after them, and can itself call the
+    # live, unbounded get_known_vocabulary() Cypher query). The app-level
+    # timeout is shortened here so the test doesn't wait the real
+    # production number of seconds - this proves the wait_for wrapper
+    # itself converts a hang into a bounded 503, not that the production
+    # timeout value is reachable inside a test.
+    async def hanging_run_multi_agent_async(question):
+        await asyncio.sleep(2)
+        return FAKE_ANSWER
+
+    monkeypatch.setattr("app.api.run_multi_agent_async", hanging_run_multi_agent_async)
+    monkeypatch.setattr("app.api.REQUEST_TIMEOUT_SECONDS", 0.05)
+
+    response = client.post("/query", json=VALID_QUESTION_PAYLOAD)
+
+    assert response.status_code == 503
     assert response.json() == {"error": SERVICE_UNAVAILABLE_MESSAGE}
 
 
