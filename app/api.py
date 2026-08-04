@@ -86,6 +86,16 @@ class QueryRequest(QuestionInput):
         return value
 
 
+@app.get("/health")
+async def health():
+    # No external calls - just confirms uvicorn is actually serving,
+    # for CI's readiness-poll step (docker compose up -d starts
+    # containers, not "is the app ready") and any future monitor to
+    # check without needing a real question or touching Block 6/Neo4j/
+    # Pinecone at all.
+    return {"status": "ok"}
+
+
 def _service_unavailable_response() -> JSONResponse:
     # Shared by both failure paths below - a dead backend must look the
     # same to the caller whether Block 6 raised outright or degraded

@@ -179,26 +179,55 @@ jobs:
   integration-test:
     if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
     runs-on: ubuntu-latest
-    env:
-      PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
-      PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
-      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      NEO4J_USER: ${{ secrets.NEO4J_USER }}
-      NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
-      # Tracing isn't part of this job's correctness gate. docker-compose.yml
-      # defaults LANGCHAIN_TRACING_V2 to true, which combined with no
-      # LANGCHAIN_API_KEY secret here would leave the app container
-      # running with tracing on and a blank key - turned off explicitly
-      # rather than assuming how the LangChain tracer fails in that case.
-      LANGCHAIN_TRACING_V2: "false"
     steps:
       - uses: actions/checkout@v4
 
       - name: Build the compose stack
+        env:
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NEO4J_USER: ${{ secrets.NEO4J_USER }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          LANGCHAIN_TRACING_V2: "false"
         run: docker compose build
 
       - name: Start the compose stack
+        env:
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NEO4J_USER: ${{ secrets.NEO4J_USER }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          # Tracing isn't part of this job's correctness gate. docker-compose.yml
+          # defaults LANGCHAIN_TRACING_V2 to true, which combined with no
+          # LANGCHAIN_API_KEY secret here would leave the app container
+          # running with tracing on and a blank key - turned off explicitly
+          # rather than assuming how the LangChain tracer fails in that case.
+          LANGCHAIN_TRACING_V2: "false"
         run: docker compose up -d
+
+      # depends_on alone only waits for containers to start, not for
+      # app's own uvicorn process to actually be accepting requests -
+      # polls both rag-service's /docs and app's own new /health so
+      # nothing later starts against a stack that's still mid-bootstrap.
+      - name: Wait for the stack to be ready
+        run: |
+          for url in http://localhost:8001/docs http://localhost:8000/health; do
+            ready=false
+            for i in $(seq 1 30); do
+              if curl -sf "$url" > /dev/null; then
+                ready=true
+                break
+              fi
+              sleep 5
+            done
+            if [ "$ready" != "true" ]; then
+              echo "Timed out waiting for $url" >&2
+              docker compose logs
+              exit 1
+            fi
+          done
 
       - uses: actions/setup-python@v5
         with:
@@ -216,4 +245,11 @@ jobs:
 
       - name: Tear down the compose stack
         if: always()
+        env:
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NEO4J_USER: ${{ secrets.NEO4J_USER }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          LANGCHAIN_TRACING_V2: "false"
         run: docker compose down
