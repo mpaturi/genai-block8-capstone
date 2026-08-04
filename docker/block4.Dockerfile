@@ -1,6 +1,36 @@
 # Block 4's RAG service, built from a pinned genai-block4-rag-eval commit.
 # Dockerfile owned by this repo, not added to Block 4's own - avoids
 # reopening an already-reviewed block (docs/spec.md Section 1).
+#
+# docker scout cves findings, accepted (not fixed here) - see README's
+# "What I'd do next" to revisit both on a future rebuild:
+#
+# - perl 5.40.1-6 (this base image's own Debian trixie OS layer): 2
+#   CRITICAL + 2 HIGH (CVE-2026-13221, CVE-2026-12087, CVE-2026-48959,
+#   CVE-2026-48962). Not installed by this project, never invoked by
+#   this app at runtime. No upstream Debian fix available as of this
+#   scan ("Fixed version: not fixed" for all four).
+#
+# - wheel 0.45.1 / jaraco-context 5.3.0 (both HIGH) were originally
+#   vendored inside this base image's pre-installed setuptools 79.0.1
+#   (setuptools/_vendor/*), confirmed by inspecting the built image's
+#   filesystem, not assumed - neither is a direct or transitive
+#   dependency from requirements.txt. The pip/setuptools/wheel/
+#   jaraco-context upgrade below was added specifically to fix these
+#   two, and it worked - confirmed live, re-scanned clean for both.
+#
+#   But upgrading pip itself (needed to pull a current setuptools) also
+#   pulls pip's *own* internal vendored copies of setuptools==70.3.0 and
+#   msgpack==1.1.2 (pip/_vendor/vendor.txt - bundled for pip's own
+#   pkg_resources/CacheControl needs, unrelated to the setuptools this
+#   Dockerfile installs itself). Both are HIGH (CVE-2025-47273,
+#   GHSA-6v7p-g79w-8964) with no fix available yet - `pip install
+#   --upgrade pip` already resolves to the newest release that exists,
+#   and that release is what ships these. Net effect of the upgrade
+#   step: two HIGH CVEs traded for two different HIGH CVEs, same total
+#   count either way - kept anyway, since reverting it wouldn't remove a
+#   CVE, only swap which two show up, and it's still a real fix for the
+#   two it targets. Accepted for now, same as perl above.
 FROM python:3.11-slim
 
 # curl is needed at runtime for docker-compose.yml's healthcheck.
@@ -24,6 +54,11 @@ WORKDIR /app
 ARG BLOCK4_COMMIT=dba8955f846d98fee70096978868bd8542bc82e3
 RUN git clone https://github.com/mpaturi/genai-block4-rag-eval.git . \
     && git checkout ${BLOCK4_COMMIT}
+
+# Fixes the wheel/jaraco-context CVEs noted above (upgrading setuptools
+# replaces its vendored copies of both) - see that note for the full
+# story, including what upgrading pip itself surfaces instead.
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel jaraco-context
 
 RUN pip install --no-cache-dir -r requirements.txt
 
