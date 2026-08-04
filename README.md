@@ -88,7 +88,6 @@ Decisions made and why: FastAPI over a CLI entry point (Phase 2's compose-stack 
 
 ## What I'd do next
 
-- Bump the `block6_multiagent` pin once its packaging PR merges to `main` (currently pinned to that PR's own branch - see `requirements.txt`'s comment).
 - Fix Block 6's own floating `block5_agent` pin (flagged in Phase 1, not fixed here - out of scope for this repo).
 - Add Block 7's query-size/runtime/retry signals to the observability view once Block 7 actually ships that logging.
 - Link Block 7's real `SECURITY.md` once that block merges, replacing the placeholder above.

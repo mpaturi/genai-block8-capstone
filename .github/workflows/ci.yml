@@ -81,10 +81,10 @@ jobs:
         run: python -m block5_agent.run_eval
 
   # Same idea as block5-suite, for Block 6. Parses the pinned commit out
-  # of requirements.txt itself (the provisional add-pyproject-packaging
-  # branch, not genai-block6-multiagent's main - see requirements.txt's
-  # own comment and Phase 1's PR description) rather than hardcoding it a
-  # second time here, so the two can't silently drift apart.
+  # of requirements.txt itself (genai-block6-multiagent's real, merged
+  # main HEAD - see requirements.txt's own comment) rather than
+  # hardcoding it a second time here, so the two can't silently drift
+  # apart.
   block6-suite:
     runs-on: ubuntu-latest
     services:
