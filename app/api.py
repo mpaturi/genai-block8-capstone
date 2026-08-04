@@ -88,12 +88,13 @@ class QueryRequest(QuestionInput):
 
 @app.get("/health")
 async def health():
-    # No external calls - just confirms uvicorn is actually serving,
-    # for CI's readiness-poll step (docker compose up -d starts
-    # containers, not "is the app ready") and any future monitor to
-    # check without needing a real question or touching Block 6/Neo4j/
-    # Pinecone at all.
-    return {"status": "ok"}
+    # TEMPORARY, for temp-ci-verification only: deliberately broken to
+    # prove integration-test's readiness-poll step actually fails closed
+    # instead of being present-but-inert. Will be reverted before this
+    # branch is discarded - never meant to reach phase-3-ci-observability-readme.
+    from fastapi import HTTPException
+
+    raise HTTPException(status_code=500, detail="deliberately broken for CI verification")
 
 
 def _service_unavailable_response() -> JSONResponse:
