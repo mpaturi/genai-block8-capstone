@@ -44,17 +44,46 @@ class QueryRequest(QuestionInput):
         return value
 
 
+def _service_unavailable_response() -> JSONResponse:
+    # Shared by both failure paths below - a dead backend must look the
+    # same to the caller whether Block 6 raised outright or degraded
+    # internally to mode="both_failed". No internal exception class name
+    # (e.g. "AuthenticationError", "Neo4jError") goes in the body; the
+    # full traceback is logged server-side instead (logger.exception),
+    # since this is the outermost boundary a user actually touches.
+    return JSONResponse(
+        status_code=503,
+        content={"error": SERVICE_UNAVAILABLE_MESSAGE},
+    )
+
+
 @app.post("/query")
 async def query(request: QueryRequest):
-    question = QuestionInput(**request.model_dump())
+    # QueryRequest already subclasses QuestionInput, so request already
+    # is one - no re-derivation needed before passing it on.
     try:
-        return await run_multi_agent_async(question)
-    except Exception as exc:
-        # Full traceback goes to the server log; the response body stays
-        # generic - matching genai-block4-rag-eval's own scripts/api.py
-        # convention of {"error": ..., "detail": type(e).__name__}.
+        answer = await run_multi_agent_async(request)
+    except Exception:
         logger.exception("run_multi_agent_async failed")
-        return JSONResponse(
-            status_code=503,
-            content={"error": SERVICE_UNAVAILABLE_MESSAGE, "detail": type(exc).__name__},
-        )
+        return _service_unavailable_response()
+
+    if answer.mode == "both_failed":
+        # Block 6 never raises by contract - a fully dead backend (Neo4j
+        # and the RAG service both unreachable) instead returns a
+        # fully-formed MultiAgentAnswer with mode="both_failed",
+        # total_patients=0, confidence="low". Returned verbatim, that's
+        # byte-identical to a legitimate "no patients matched" 200 - a
+        # monitor polling this endpoint would see 200 OK while the whole
+        # stack is dead. Treat it the same as the exception path above.
+        logger.error("run_multi_agent_async reported mode=both_failed")
+        return _service_unavailable_response()
+
+    # clinical_only_degraded/cohort_only_degraded stay a plain 200 on
+    # purpose: unlike both_failed, one agent produced a real answer
+    # backed by real data (cohort_only_degraded is even confidence="high"
+    # - Role 2's count is exhaustive regardless of Role 1's availability).
+    # This is a degraded-but-genuine answer, not a service outage, and
+    # the caller can already see the degradation via the `mode` field
+    # in the response body - HTTP status here reflects "is the service
+    # up", not "is this specific answer partial".
+    return answer
