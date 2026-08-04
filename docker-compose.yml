@@ -109,6 +109,14 @@ services:
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
       - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-true}
       - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-block8-capstone}
+    # Bind-mounted so scripts/run_log.py's data/eval/run_log.jsonl (written
+    # relative to WORKDIR /app, i.e. /app/data/eval/run_log.jsonl) actually
+    # lands on the host instead of only existing in the container's own
+    # ephemeral filesystem - there was no volumes: entry here at all
+    # before, so this file could never reach the host under any
+    # circumstances, regardless of user/permissions.
+    volumes:
+      - ./data:/app/data
     ports:
       - "127.0.0.1:8000:8000"
 

@@ -19,10 +19,14 @@ COPY app/ ./app/
 
 # Non-root: uvicorn only needs to bind 8000 (non-privileged, no root
 # required) and read its own already-installed code - no reason for the
-# request-handling process itself to run as root.
+# request-handling process itself to run as root. Not switched via USER
+# here, though - see docker/app_entrypoint.sh for why the container still
+# starts as root and drops privileges itself at runtime instead.
 RUN groupadd --system app && useradd --system --gid app --home /app app \
     && chown -R app:app /app
-USER app
+
+COPY docker/app_entrypoint.sh /app_entrypoint.sh
+RUN chmod +x /app_entrypoint.sh
 
 EXPOSE 8000
-CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000"]
+ENTRYPOINT ["/app_entrypoint.sh"]
