@@ -8,11 +8,29 @@ services:
     environment:
       - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
       - NEO4J_PLUGINS=["apoc"]
+      # Deliberately NOT named NEO4J_USER/NEO4J_PASSWORD: the official
+      # image's entrypoint auto-converts every NEO4J_*-prefixed env var
+      # into a neo4j.conf setting (that's how NEO4J_dbms_..., etc. work) -
+      # NEO4J_USER/NEO4J_PASSWORD aren't real settings, so the container
+      # fails to start ("Unrecognized setting"). These two exist only for
+      # the healthcheck's shell to read below, so they're named to avoid
+      # that conversion entirely.
+      - CYPHER_SHELL_USER=${NEO4J_USER}
+      - CYPHER_SHELL_PASSWORD=${NEO4J_PASSWORD}
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u ${NEO4J_USER} -p ${NEO4J_PASSWORD} 'RETURN 1' || exit 1"]
+      # $$ (not $) so Compose passes the literal env var name through to
+      # the container's CMD-SHELL instead of substituting the value at
+      # parse time - substituting here would bake the plaintext password
+      # into this service's stored config (readable via `docker inspect`
+      # or `docker compose config`, and visible in the process list every
+      # interval). The container's own shell resolves $$CYPHER_SHELL_USER/
+      # $$CYPHER_SHELL_PASSWORD from its env (set explicitly above) at
+      # runtime instead, so the literal value never gets persisted
+      # anywhere.
+      test: ["CMD-SHELL", "cypher-shell -u $$CYPHER_SHELL_USER -p $$CYPHER_SHELL_PASSWORD 'RETURN 1' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
