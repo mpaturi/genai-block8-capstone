@@ -11,7 +11,10 @@ jobs:
   # own correctness, not a re-litigation of tests Block 5's own CI already
   # runs (docs/spec.md's "What done looks like"). No live secrets: same
   # USE_RAG_FIXTURES/USE_STUB_ANSWER_FN stubbing Block 5's own CI already
-  # uses, confirmed against its real .github/workflows/ci.yml.
+  # uses, confirmed against its real .github/workflows/ci.yml. Parses the
+  # pinned commit out of requirements.txt itself, same as block6-suite
+  # below, rather than checking out `main` - a moving target independent
+  # of the commit this repo's own pin actually installs.
   block5-suite:
     runs-on: ubuntu-latest
     services:
@@ -31,11 +34,21 @@ jobs:
       - name: Install this repo's combined dependency set
         run: pip install -r requirements.txt
 
+      - name: Parse pinned Block 5 commit from requirements.txt
+        id: block5-pin
+        run: |
+          commit=$(sed -n 's|^block5_agent @ git+https://github.com/mpaturi/genai-block5-agent.git@\(.*\)$|\1|p' requirements.txt)
+          if [ -z "$commit" ]; then
+            echo "Could not parse block5_agent's pinned commit out of requirements.txt" >&2
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
       - name: Checkout genai-block5-agent (for its tests/data, not its deps)
         uses: actions/checkout@v4
         with:
           repository: mpaturi/genai-block5-agent
-          ref: main
+          ref: ${{ steps.block5-pin.outputs.commit }}
           path: block5-agent-src
 
       - name: Load CI graph seed
