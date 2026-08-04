@@ -67,6 +67,10 @@ def test_query_returns_structured_answer_for_valid_question(monkeypatch):
     assert body["confidence"] == "high"
     assert body["mode"] == "reconciled"
     assert body["citations"][0]["patient_id"] == 1
+    # X-Answer-Mode is set on every 200, not just degraded ones - simpler
+    # than conditional logic, and a monitor can key off the header value
+    # directly without parsing the body.
+    assert response.headers["X-Answer-Mode"] == "reconciled"
 
 
 BOTH_FAILED_ANSWER = MultiAgentAnswer(
@@ -149,6 +153,48 @@ def test_query_returns_503_when_run_multi_agent_async_hangs_past_the_timeout(mon
 
     assert response.status_code == 503
     assert response.json() == {"error": SERVICE_UNAVAILABLE_MESSAGE}
+
+
+COHORT_ONLY_DEGRADED_ANSWER = MultiAgentAnswer(
+    question=(
+        "Of patients with Type 2 diabetes and HbA1c > 8, how many are on "
+        "metformin vs. insulin?"
+    ),
+    answer=(
+        "Of 30 patients with Type 2 diabetes and HbA1c above 8, 12 are on "
+        "metformin and 9 are on insulin. No supporting evidence citations "
+        "are available for this run because the clinical evidence agent "
+        "failed."
+    ),
+    total_patients=30,
+    drug_a_count=12,
+    drug_b_count=9,
+    confidence="high",
+    mode="cohort_only_degraded",
+    citations=[],
+    caveat=None,
+    discrepancy_flag=False,
+)
+
+
+def test_query_sets_x_answer_mode_header_on_degraded_answer(monkeypatch):
+    # A degraded-but-real answer still returns 200 (it's not a service
+    # outage - see the both_failed test above for that case), but a
+    # monitor watching this endpoint needs to tell "fully healthy" apart
+    # from "degraded but real" without parsing the JSON body on every
+    # poll. The header is set unconditionally on every 200 (see the
+    # reconciled-mode assertion in the happy-path test above), not just
+    # on degraded ones - simpler than conditional logic, and lets a
+    # monitor key off the header value directly.
+    async def fake_run_multi_agent_async(question):
+        return COHORT_ONLY_DEGRADED_ANSWER
+
+    monkeypatch.setattr("app.api.run_multi_agent_async", fake_run_multi_agent_async)
+
+    response = client.post("/query", json=VALID_QUESTION_PAYLOAD)
+
+    assert response.status_code == 200
+    assert response.headers["X-Answer-Mode"] == "cohort_only_degraded"
 
 
 def test_query_rejects_blank_condition_before_calling_block6(monkeypatch):

@@ -133,4 +133,15 @@ async def query(request: QueryRequest):
     # the caller can already see the degradation via the `mode` field
     # in the response body - HTTP status here reflects "is the service
     # up", not "is this specific answer partial".
-    return answer
+    #
+    # X-Answer-Mode is set on every 200 (reconciled included), not just
+    # the degraded ones - simpler than conditional logic, and it lets a
+    # monitor key off the header value directly (alert on
+    # clinical_only_degraded/cohort_only_degraded, ignore reconciled)
+    # without parsing the JSON body on every poll. both_failed never
+    # reaches here - it already returns 503 above, an unambiguous signal
+    # on its own that doesn't need this header. Returned as a JSONResponse
+    # rather than the bare model, since FastAPI only serializes a
+    # returned Pydantic model directly - it won't attach extra headers to
+    # it.
+    return JSONResponse(content=answer.model_dump(), headers={"X-Answer-Mode": answer.mode})
