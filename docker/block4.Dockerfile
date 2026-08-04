@@ -26,7 +26,13 @@ COPY docker/block4_entrypoint.py /entrypoint.py
 # something that needs root either.
 RUN groupadd --system app && useradd --system --gid app --home /app app \
     && chown -R app:app /app
-USER app
+# Numeric UID, not the username - a username in USER requires the host
+# system to resolve it via NSS at container-start time, which isn't
+# guaranteed across every host/orchestrator; a numeric UID always works
+# (hadolint DL3066). 999 is this image's actual, verified UID for `app`
+# (confirmed live via `id app` against this exact useradd --system
+# invocation on python:3.11-slim - not guessed), not an arbitrary choice.
+USER 999
 
 EXPOSE 8000
 ENTRYPOINT ["python", "/entrypoint.py"]

@@ -25,6 +25,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Neo4j over the network (via the driver) - nothing here needs root.
 RUN groupadd --system app && useradd --system --gid app --home /app app \
     && chown -R app:app /app
-USER app
+# Numeric UID, not the username - a username in USER requires the host
+# system to resolve it via NSS at container-start time, which isn't
+# guaranteed across every host/orchestrator; a numeric UID always works
+# (hadolint DL3066). 999 is this image's actual, verified UID for `app`
+# (confirmed live via `id app` against this exact useradd --system
+# invocation on python:3.11-slim - not guessed), not an arbitrary choice.
+USER 999
 
 CMD ["python", "scripts/load_graph.py"]
