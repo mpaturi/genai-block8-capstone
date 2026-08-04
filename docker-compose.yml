@@ -56,6 +56,15 @@ services:
       context: .
       dockerfile: docker/block4.Dockerfile
     container_name: block8-rag-service
+    # unless-stopped, not on-failure: a crash and an explicit `docker
+    # compose stop`/host reboot should be treated differently. on-failure
+    # only restarts on a non-zero exit, so a container that gets OOM-killed
+    # or crashes some other way that still exits 0 (rare, but the failure
+    # mode this decision is about) wouldn't come back; unless-stopped
+    # restarts on any exit except one the operator explicitly asked for,
+    # which is the behavior actually wanted here - stay up unless a human
+    # said stop.
+    restart: unless-stopped
     environment:
       - PINECONE_API_KEY=${PINECONE_API_KEY}
       - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
@@ -78,6 +87,9 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: block8-app
+    # Same reasoning as rag-service above: stay up after a transient crash
+    # unless a human explicitly stopped it.
+    restart: unless-stopped
     depends_on:
       rag-service:
         condition: service_healthy
