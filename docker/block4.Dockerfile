@@ -20,5 +20,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY docker/block4_entrypoint.py /entrypoint.py
 
+# Non-root: uvicorn only needs to bind 8000 (non-privileged, no root
+# required); everything else this container does (Pinecone/Anthropic API
+# calls, reading its own git-cloned code) is a network call or a read, not
+# something that needs root either.
+RUN groupadd --system app && useradd --system --gid app --home /app app \
+    && chown -R app:app /app
+USER app
+
 EXPOSE 8000
 ENTRYPOINT ["python", "/entrypoint.py"]

@@ -21,4 +21,10 @@ RUN git clone https://github.com/mpaturi/genai-block3-graph-kb.git . \
 
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Non-root: load_graph.py only reads its own committed CSVs and writes to
+# Neo4j over the network (via the driver) - nothing here needs root.
+RUN groupadd --system app && useradd --system --gid app --home /app app \
+    && chown -R app:app /app
+USER app
+
 CMD ["python", "scripts/load_graph.py"]

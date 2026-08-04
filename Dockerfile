@@ -17,5 +17,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app/ ./app/
 
+# Non-root: uvicorn only needs to bind 8000 (non-privileged, no root
+# required) and read its own already-installed code - no reason for the
+# request-handling process itself to run as root.
+RUN groupadd --system app && useradd --system --gid app --home /app app \
+    && chown -R app:app /app
+USER app
+
 EXPOSE 8000
 CMD ["uvicorn", "app.api:app", "--host", "0.0.0.0", "--port", "8000"]
