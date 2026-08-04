@@ -31,6 +31,11 @@ from pathlib import Path
 
 LOG_PATH = Path("data/eval/run_log.jsonl")
 
+# Every field print_report() aggregates over. A run missing any of these
+# (an older log format, or a run that failed before cost was recorded)
+# can't be included - see _valid_runs() below.
+REQUIRED_FIELDS = ("cost_usd", "tokens", "latency_ms", "mode", "confidence", "discrepancy_flag")
+
 
 def load_runs(log_path: Path) -> list[dict]:
     if not log_path.exists():
@@ -56,7 +61,26 @@ def load_runs(log_path: Path) -> list[dict]:
     return runs
 
 
+def _valid_runs(runs: list[dict]) -> list[dict]:
+    """Same tolerance load_runs() already has for malformed JSON, extended
+    to individual runs missing a required field: skip with a warning and
+    exclude from aggregates, rather than crashing (direct indexing) or
+    silently defaulting to 0 (understates cost/token totals with no
+    signal - inconsistent with how this project treats silent
+    degradation everywhere else).
+    """
+    valid = []
+    for run_number, run in enumerate(runs, start=1):
+        missing_field = next((field for field in REQUIRED_FIELDS if field not in run), None)
+        if missing_field is not None:
+            print(f"[warn] skipping run {run_number} - missing field '{missing_field}'")
+            continue
+        valid.append(run)
+    return valid
+
+
 def print_report(runs: list[dict]) -> None:
+    runs = _valid_runs(runs)
     total_cost = sum(run["cost_usd"] for run in runs)
     total_tokens = sum(run["tokens"] for run in runs)
     latencies = [run["latency_ms"] for run in runs]
