@@ -24,6 +24,17 @@ from pinecone.exceptions import NotFoundException, PineconeException
 
 APP_DIR = "/app"
 
+# Block 4's scripts/ directory isn't a package (no __init__.py) - its own
+# entry points (run_all.py, verify.py) rely on being run directly, which
+# adds their own directory to sys.path automatically. This entrypoint
+# lives outside that directory (COPY'd to /entrypoint.py, not into
+# APP_DIR/scripts), so the same thing is done explicitly here to reuse
+# Block 4's own NAMESPACE/RECORDS_PATH/chunk_all_records rather than
+# redeclaring them and risking drift from Block 4's real code.
+sys.path.insert(0, os.path.join(APP_DIR, "scripts"))
+from chunk_records import chunk_all_records  # noqa: E402
+from ingest import NAMESPACE, RECORDS_PATH  # noqa: E402
+
 
 def index_is_populated() -> bool:
     api_key = os.environ.get("PINECONE_API_KEY")
@@ -34,22 +45,36 @@ def index_is_populated() -> bool:
     pc = Pinecone(api_key=api_key)
     try:
         pc.describe_index(index_name)
+        index = pc.Index(name=index_name)
+        stats = index.describe_index_stats()
     except NotFoundException:
         return False
     except PineconeException as exc:
         # Covers everything else Pinecone can raise here (bad API key,
-        # unreachable service, etc.) - NotFoundException above is the
-        # only outcome that should trigger a bootstrap; anything else is
-        # a real problem the caller needs to fix, not something run_all.py
-        # can paper over, so this fails the same way run_all.py failing
-        # does: a one-line diagnostic and a non-zero exit, never a raw
-        # traceback.
+        # unreachable control-plane, a data-plane blip on
+        # describe_index_stats(), a still-initializing index, etc.) -
+        # NotFoundException above is the only outcome that should trigger
+        # a bootstrap; anything else is a real problem the caller needs to
+        # fix, not something run_all.py can paper over, so this fails the
+        # same way run_all.py failing does: a one-line diagnostic and a
+        # non-zero exit, never a raw traceback.
         print(f"[block4-entrypoint] Could not reach Pinecone - check PINECONE_API_KEY is valid ({type(exc).__name__}).")
         sys.exit(1)
 
-    index = pc.Index(name=index_name)
-    stats = index.describe_index_stats()
-    return any(namespace.vector_count > 0 for namespace in stats.namespaces.values())
+    # Block 4 ingests exclusively into the "patients" namespace
+    # (scripts/ingest.py's NAMESPACE) - checking whether *any* namespace
+    # has vectors would also read a half-finished ingest, or an index
+    # shared with something else, as "populated". Comparing against the
+    # expected chunk count (not just "greater than zero") is the same
+    # check scripts/verify.py's get_vector_count()/check_chunk_count()
+    # already do - reused here via the same NAMESPACE/RECORDS_PATH/
+    # chunk_all_records rather than reinvented, so this repo's bootstrap
+    # gate and Block 4's own correctness check can never silently drift
+    # apart.
+    namespace_stats = stats.namespaces.get(NAMESPACE)
+    actual_count = namespace_stats.vector_count if namespace_stats else 0
+    expected_count = len(chunk_all_records(RECORDS_PATH))
+    return actual_count == expected_count
 
 
 def main() -> None:
