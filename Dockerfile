@@ -7,6 +7,15 @@ FROM python:3.11-slim
 # block6_multiagent dependency below. curl is needed at runtime for
 # docker-compose.yml's healthcheck (mirrors docker/block4.Dockerfile's
 # same git curl pairing).
+#
+# Deliberately not version-pinned (hadolint DL3008 flags this): an exact
+# Debian package version can disappear from the mirror by the time
+# python:3.11-slim gets rebuilt, turning a routine rebuild into a broken
+# build - a worse failure mode than the version drift being guarded
+# against. git/curl are stable system utilities here, not
+# security-sensitive libraries this repo's own threat model cares about
+# pinning exactly (that's what requirements.txt's real dependency pins
+# are for).
 RUN apt-get update && apt-get install -y --no-install-recommends git curl \
     && rm -rf /var/lib/apt/lists/*
 

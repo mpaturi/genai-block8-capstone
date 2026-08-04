@@ -7,6 +7,16 @@
 # tradeoff in re-running it every time.
 FROM python:3.11-slim
 
+# git is needed at build time only, to clone the pinned Block 3 commit
+# below.
+#
+# Deliberately not version-pinned (hadolint DL3008 flags this): an exact
+# Debian package version can disappear from the mirror by the time
+# python:3.11-slim gets rebuilt, turning a routine rebuild into a broken
+# build - a worse failure mode than the version drift being guarded
+# against. git is a stable system utility here, not a security-sensitive
+# library this repo's own threat model cares about pinning exactly
+# (that's what requirements.txt's real dependency pins are for).
 RUN apt-get update && apt-get install -y --no-install-recommends git \
     && rm -rf /var/lib/apt/lists/*
 
