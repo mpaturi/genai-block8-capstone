@@ -89,6 +89,18 @@ def main() -> None:
             print("[block4-entrypoint] run_all.py failed - refusing to start with an unverified index.")
             sys.exit(result.returncode)
 
+    # os.execvp() replaces this process image outright - unlike sys.exit()
+    # (the error paths above, in index_is_populated() and here), it does
+    # NOT run normal interpreter shutdown, so stdout's buffered content
+    # (both this file's own print()s above, whichever branch ran) would
+    # otherwise be silently discarded instead of ever reaching
+    # `docker compose logs` - confirmed live: two independent cold starts
+    # both showed uvicorn's own output but neither of this function's
+    # print()s. One flush right here, not flush=True scattered across
+    # each print() call above, so it still catches whatever's pending
+    # regardless of which branch got here - including a future branch
+    # added here later that nobody remembers to annotate individually.
+    sys.stdout.flush()
     os.execvp("uvicorn", ["uvicorn", "scripts.api:app", "--host", "0.0.0.0", "--port", "8000"])
 
 
