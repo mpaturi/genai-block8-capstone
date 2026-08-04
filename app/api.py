@@ -115,6 +115,10 @@ async def query(request: QueryRequest):
         return _service_unavailable_response()
 
     if answer.mode == "both_failed":
+        # This check guards the exact string "both_failed" only - if
+        # Block 6 ever introduces a second catastrophic-failure mode
+        # under a different name, this repo silently returns 200 for it
+        # unless this check is updated to match.
         # Block 6 never raises by contract - a fully dead backend (Neo4j
         # and the RAG service both unreachable) instead returns a
         # fully-formed MultiAgentAnswer with mode="both_failed",

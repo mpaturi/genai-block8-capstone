@@ -197,6 +197,40 @@ def test_query_sets_x_answer_mode_header_on_degraded_answer(monkeypatch):
     assert response.headers["X-Answer-Mode"] == "cohort_only_degraded"
 
 
+CLINICAL_ONLY_DEGRADED_ANSWER = MultiAgentAnswer(
+    question=(
+        "Of patients with Type 2 diabetes and HbA1c > 8, how many are on "
+        "metformin vs. insulin?"
+    ),
+    answer="Of the 18 patients checked, 8 are on metformin and 6 are on insulin.",
+    total_patients=18,
+    drug_a_count=8,
+    drug_b_count=6,
+    confidence="medium",
+    mode="clinical_only_degraded",
+    citations=[Citation(patient_id=1, snippet="stable on metformin", source="clinical")],
+    caveat=None,
+    discrepancy_flag=False,
+)
+
+
+def test_query_sets_x_answer_mode_header_on_clinical_only_degraded_answer(monkeypatch):
+    # Mirrors test_query_sets_x_answer_mode_header_on_degraded_answer
+    # above, for clinical_only_degraded instead of cohort_only_degraded -
+    # the two degraded modes are symmetric (one agent failed, the other's
+    # real answer is used alone), so both need the same explicit coverage
+    # rather than trusting that testing one proves the other.
+    async def fake_run_multi_agent_async(question):
+        return CLINICAL_ONLY_DEGRADED_ANSWER
+
+    monkeypatch.setattr("app.api.run_multi_agent_async", fake_run_multi_agent_async)
+
+    response = client.post("/query", json=VALID_QUESTION_PAYLOAD)
+
+    assert response.status_code == 200
+    assert response.headers["X-Answer-Mode"] == "clinical_only_degraded"
+
+
 def test_query_rejects_blank_condition_before_calling_block6(monkeypatch):
     def fail_if_called(question):
         raise AssertionError("run_multi_agent_async should not be called for invalid input")
