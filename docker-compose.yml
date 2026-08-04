@@ -121,6 +121,19 @@ services:
       - ./data:/app/data
     ports:
       - "127.0.0.1:8000:8000"
+    healthcheck:
+      # app's own /health (added for CI's readiness-poll step) - only
+      # responds once uvicorn is actually serving, not just once the
+      # container is "running". start_period 30s, not rag-service's 90s:
+      # app does no Pinecone bootstrap, just imports and connects to
+      # already-healthy dependencies - depends_on above already gates it
+      # behind rag-service being healthy and graph-seed completing, so it
+      # should be ready fast.
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
 volumes:
   neo4j_data:

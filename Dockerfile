@@ -6,8 +6,10 @@
 FROM python:3.11-slim
 
 # git is needed at build time only, for pip to clone the git+https-pinned
-# block6_multiagent dependency below.
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+# block6_multiagent dependency below. curl is needed at runtime for
+# docker-compose.yml's healthcheck (mirrors docker/block4.Dockerfile's
+# same git curl pairing).
+RUN apt-get update && apt-get install -y --no-install-recommends git curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
