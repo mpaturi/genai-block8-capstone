@@ -1,0 +1,30 @@
+# block6_multiagent is pinned to genai-block6-multiagent's main HEAD
+# (PR #11, the add-pyproject-packaging branch, merged there), per this
+# repo's own "pinned to a specific reviewed commit, never a floating
+# branch" rule (see docs/spec.md's "Version bumps" section).
+block6_multiagent @ git+https://github.com/mpaturi/genai-block6-multiagent.git@c9060238fab0028f90c6de3d72d6a7e1e1b573d8
+
+# Installed top-level import name is `scripts` (block6_multiagent's own
+# package directory name), not the distribution name above.
+
+# block6_multiagent's own pyproject.toml declares no dependencies (kept
+# deliberately minimal - packaging-only PR), so its runtime deps are
+# listed here explicitly, matching its own requirements.txt exactly.
+# Pinned to genai-block5-agent's main HEAD commit, not @main - that repo's
+# own requirements.txt still floats this pin (PR #2 review finding,
+# flagged as a follow-up there), but this repo declares the dependency
+# directly, so it owns pinning it to the same commit-not-branch policy
+# as block6_multiagent above.
+block5_agent @ git+https://github.com/mpaturi/genai-block5-agent.git@93143f2564413fba498cc01e8471a345fb07c481
+langgraph==1.2.9
+langsmith==0.10.6
+anthropic==0.116.0
+pydantic==2.13.4
+neo4j==6.2.0
+requests==2.34.2
+python-dotenv==1.2.2
+
+# This repo's own entry point
+fastapi==0.139.0
+uvicorn==0.51.0
+pytest==9.1.1
