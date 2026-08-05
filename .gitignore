@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated output from local/Docker runs - scripts/run_log.py's own
+# docstring already documents data/eval/run_log.jsonl as "isn't
+# committed (see .gitignore)", but nothing here actually covered it -
+# the app service's ./data bind mount now reliably fills this directory
+# with real run output on every docker compose up.
+/data/

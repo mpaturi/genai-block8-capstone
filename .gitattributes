@@ -1,0 +1,8 @@
+# Shell scripts run as a container ENTRYPOINT/CMD need a real LF shebang
+# line - a CRLF-converted #!/bin/sh\r fails with "no such file or
+# directory" at container start, discovered live: checking out this repo
+# on a Windows machine with core.autocrlf=true silently corrupted
+# docker/app_entrypoint.sh this way, with no error at commit or push time
+# - only at container start. Force LF regardless of the checking-out
+# platform's autocrlf setting.
+*.sh text eol=lf
