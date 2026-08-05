@@ -1,0 +1,255 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # Re-runs Block 5's own stubbed test/eval suite, but using the single
+  # combined dependency set this repo's own requirements.txt resolves -
+  # proves the three-repo dependency combination doesn't break Block 5's
+  # own correctness, not a re-litigation of tests Block 5's own CI already
+  # runs (docs/spec.md's "What done looks like"). No live secrets: same
+  # USE_RAG_FIXTURES/USE_STUB_ANSWER_FN stubbing Block 5's own CI already
+  # uses, confirmed against its real .github/workflows/ci.yml. Parses the
+  # pinned commit out of requirements.txt itself, same as block6-suite
+  # below, rather than checking out `main` - a moving target independent
+  # of the commit this repo's own pin actually installs.
+  block5-suite:
+    runs-on: ubuntu-latest
+    services:
+      neo4j:
+        image: neo4j:5.18-community
+        env:
+          NEO4J_AUTH: neo4j/ci_test_password
+        ports:
+          - 7687:7687
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install this repo's combined dependency set
+        run: pip install -r requirements.txt
+
+      - name: Parse pinned Block 5 commit from requirements.txt
+        id: block5-pin
+        run: |
+          commit=$(sed -n 's|^block5_agent @ git+https://github.com/mpaturi/genai-block5-agent.git@\(.*\)$|\1|p' requirements.txt)
+          if [ -z "$commit" ]; then
+            echo "Could not parse block5_agent's pinned commit out of requirements.txt" >&2
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout genai-block5-agent (for its tests/data, not its deps)
+        uses: actions/checkout@v4
+        with:
+          repository: mpaturi/genai-block5-agent
+          ref: ${{ steps.block5-pin.outputs.commit }}
+          path: block5-agent-src
+
+      - name: Load CI graph seed
+        working-directory: block5-agent-src
+        env:
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: ci_test_password
+          NEO4J_DATABASE: neo4j
+        run: python -m block5_agent.load_ci_graph_seed
+
+      - name: Run tests
+        working-directory: block5-agent-src
+        env:
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: ci_test_password
+          NEO4J_DATABASE: neo4j
+        run: python -m pytest
+
+      - name: Run evaluation (stubbed - no live Anthropic/Pinecone calls)
+        working-directory: block5-agent-src
+        env:
+          USE_RAG_FIXTURES: "1"
+          USE_STUB_ANSWER_FN: "1"
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: ci_test_password
+          NEO4J_DATABASE: neo4j
+        run: python -m block5_agent.run_eval
+
+  # Same idea as block5-suite, for Block 6. Parses the pinned commit out
+  # of requirements.txt itself (genai-block6-multiagent's real, merged
+  # main HEAD - see requirements.txt's own comment) rather than
+  # hardcoding it a second time here, so the two can't silently drift
+  # apart.
+  block6-suite:
+    runs-on: ubuntu-latest
+    services:
+      neo4j:
+        image: neo4j:5.18-community
+        env:
+          NEO4J_AUTH: neo4j/ci_test_password
+        ports:
+          - 7687:7687
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install this repo's combined dependency set
+        run: pip install -r requirements.txt
+
+      - name: Parse pinned Block 6 commit from requirements.txt
+        id: block6-pin
+        run: |
+          commit=$(sed -n 's|^block6_multiagent @ git+https://github.com/mpaturi/genai-block6-multiagent.git@\(.*\)$|\1|p' requirements.txt)
+          if [ -z "$commit" ]; then
+            echo "Could not parse block6_multiagent's pinned commit out of requirements.txt" >&2
+            exit 1
+          fi
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout genai-block6-multiagent (for its tests/data, not its deps)
+        uses: actions/checkout@v4
+        with:
+          repository: mpaturi/genai-block6-multiagent
+          ref: ${{ steps.block6-pin.outputs.commit }}
+          path: block6-multiagent-src
+
+      - name: Load CI graph seed
+        working-directory: block6-multiagent-src
+        env:
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: ci_test_password
+          NEO4J_DATABASE: neo4j
+        run: python -m scripts.load_ci_graph_seed
+
+      - name: Vocabulary check
+        working-directory: block6-multiagent-src
+        env:
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: ci_test_password
+          NEO4J_DATABASE: neo4j
+        run: python -m scripts.vocabulary_check
+
+      - name: Run tests
+        working-directory: block6-multiagent-src
+        run: python -m pytest
+
+      - name: Run evaluation (stubbed - no live Anthropic/Pinecone calls)
+        working-directory: block6-multiagent-src
+        env:
+          USE_RAG_FIXTURES: "1"
+          USE_STUB_ANSWER_FN: "1"
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USER: neo4j
+          NEO4J_PASSWORD: ci_test_password
+          NEO4J_DATABASE: neo4j
+        run: python -m scripts.run_eval
+
+  # Re-runs Phase 1's own mocked contract tests (tests/test_api.py) -
+  # cheap, no live calls, part of this repo's own gate on every push.
+  app-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest
+
+  # The one job that needs real secrets and costs real money per run
+  # (live Anthropic + Pinecone calls against the assembled compose
+  # stack) - only on a push to main or a PR targeting main, not every
+  # feature-branch push. See this phase's PR description for the
+  # reasoning.
+  integration-test:
+    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the compose stack
+        env:
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NEO4J_USER: ${{ secrets.NEO4J_USER }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          LANGCHAIN_TRACING_V2: "false"
+        run: docker compose build
+
+      - name: Start the compose stack
+        env:
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NEO4J_USER: ${{ secrets.NEO4J_USER }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          # Tracing isn't part of this job's correctness gate. docker-compose.yml
+          # defaults LANGCHAIN_TRACING_V2 to true, which combined with no
+          # LANGCHAIN_API_KEY secret here would leave the app container
+          # running with tracing on and a blank key - turned off explicitly
+          # rather than assuming how the LangChain tracer fails in that case.
+          LANGCHAIN_TRACING_V2: "false"
+        run: docker compose up -d
+
+      # depends_on alone only waits for containers to start, not for
+      # app's own uvicorn process to actually be accepting requests -
+      # polls both rag-service's /docs and app's own new /health so
+      # nothing later starts against a stack that's still mid-bootstrap.
+      - name: Wait for the stack to be ready
+        run: |
+          for url in http://localhost:8001/docs http://localhost:8000/health; do
+            ready=false
+            for i in $(seq 1 30); do
+              if curl -sf "$url" > /dev/null; then
+                ready=true
+                break
+              fi
+              sleep 5
+            done
+            if [ "$ready" != "true" ]; then
+              echo "Timed out waiting for $url" >&2
+              docker compose logs
+              exit 1
+            fi
+          done
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: pip install requests pytest
+
+      - name: Run integration tests against the real stack
+        run: python -m pytest tests/integration -v
+
+      - name: Show container logs on failure
+        if: failure()
+        run: docker compose logs
+
+      - name: Tear down the compose stack
+        if: always()
+        env:
+          PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
+          PINECONE_INDEX_NAME: ${{ secrets.PINECONE_INDEX_NAME }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NEO4J_USER: ${{ secrets.NEO4J_USER }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+          LANGCHAIN_TRACING_V2: "false"
+        run: docker compose down

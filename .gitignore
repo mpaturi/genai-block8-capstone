@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated output from local/Docker runs, bind-mounted from the app
+# container per docker-compose.yml - not source code. Covers Block 6's
+# own orchestrator-level log (data/eval/run_log.jsonl, what
+# observability/report.py reads) and Block 5's own per-agent-call log
+# (data/logs/, run_agent's internal log_run() call, confirmed present on
+# a real run - matches its own repo's .gitignore convention of ignoring
+# the whole data/logs/ directory) under one blanket entry, rather than
+# listing each generated path separately.
+/data/

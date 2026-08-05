@@ -57,17 +57,20 @@ per house rules.
 ## Phase 2 — Containerization (branch: `phase-2-containerization`)
 
 - [ ] Confirm Phase 1 has actually merged — this phase doesn't start
-      until that's true.
+      until that's true. Deviation: not yet true - Phase 1 (PR #2) was
+      still open when this phase started. Proceeded anyway per explicit
+      instruction, branching off `phase-1-core-app` directly instead.
 - [ ] Branch off `main` in `genai-block8-capstone` as
-      `phase-2-containerization` (now includes Phase 1).
-- [ ] Verify: does Block 4's server entry point (`scripts/api.py`, `POST
+      `phase-2-containerization` (now includes Phase 1). Deviation:
+      branched off `phase-1-core-app` instead - same reason as above.
+- [x] Verify: does Block 4's server entry point (`scripts/api.py`, `POST
       /query`, started via `uvicorn scripts.api:app`) and its three
       required env vars, and Block 3's `load_graph.py` plus its
       committed CSV paths, still match what `spec.md` documents? Apply
       the verification rule above if not.
-- [ ] Write a `Dockerfile` for this repo's own app (Phase 1's entry
+- [x] Write a `Dockerfile` for this repo's own app (Phase 1's entry
       point, built on the pinned Block 6 commit).
-- [ ] Write a `Dockerfile` for Block 4, built from a pinned
+- [x] Write a `Dockerfile` for Block 4, built from a pinned
       `genai-block4-rag-eval` commit — lives in this repo, not added to
       Block 4's. On first container startup, run Block 4's own
       idempotent `run_all.py` (`check_connection` → `create_index` →
@@ -75,59 +78,73 @@ per house rules.
       `PINECONE_INDEX_NAME`, so a fresh clone builds its own populated
       index instead of needing one that already exists. Decide whether
       this runs on every start or only when the index is found empty.
-- [ ] Write the Neo4j service definition, seeded on first startup by
+- [x] Write the Neo4j service definition, seeded on first startup by
       re-running Block 3's confirmed-idempotent `load_graph.py` (pinned
       commit) against the committed CSVs.
-- [ ] Write `docker-compose.yml` wiring all three services together:
+- [x] Write `docker-compose.yml` wiring all three services together:
       `RAG_API_URL` and `NEO4J_URI` point at in-network service names;
       credentials are read from a git-ignored `.env`.
-- [ ] Run `docker-compose up`, confirm all three services start cleanly
+- [x] Run `docker-compose up`, confirm all three services start cleanly
       and the entry point is reachable.
-- [ ] Write integration tests against the real three-service stack —
+- [x] Write integration tests against the real three-service stack —
       ask a real question through the running compose stack, get a real
       answer, confirming the whole chain works end to end, not just
       Block 8's own code in isolation (Phase 1's mocked tests couldn't
       cover this). Confirm retrieval actually returns real results, not
       just a well-formed "I don't know" that would mask an unpopulated
       or unreachable Pinecone index.
-- [ ] Run the integration tests, confirm they pass.
-- [ ] Commit the Dockerfiles and compose config as one logical change,
+- [x] Run the integration tests, confirm they pass.
+- [x] Commit the Dockerfiles and compose config as one logical change,
       the integration tests as a separate commit.
-- [ ] Push, open PR against `main`.
+- [ ] Push, open PR against `main`. Deviation: PR #3 targets
+      `phase-1-core-app`, not `main` - same reason as the branch-off
+      note above.
 
 ## Phase 3 — CI/CD, observability, README (branch: `phase-3-ci-observability-readme`)
 
 - [ ] Confirm Phase 2 has actually merged — CI's integration tests need
-      the compose stack Phase 2 built.
+      the compose stack Phase 2 built. Deviation: not yet true - Phase 2
+      (PR #3) was still open when this phase started. Proceeded anyway
+      per explicit instruction, branching off `phase-2-containerization`
+      directly instead.
 - [ ] Branch off `main` in `genai-block8-capstone` as
-      `phase-3-ci-observability-readme`.
-- [ ] Confirm Block 5 and Block 6's existing suites still run stubbed
+      `phase-3-ci-observability-readme`. Deviation: branched off
+      `phase-2-containerization` instead - same reason as above.
+- [x] Confirm Block 5 and Block 6's existing suites still run stubbed
       (`USE_RAG_FIXTURES`, `USE_STUB_ANSWER_FN` or equivalent) in their
       own CI, matching what's already confirmed — no live secrets
       needed to re-run them here.
-- [ ] Write the GitHub Actions workflow: re-run Block 5 and Block 6's
+- [x] Write the GitHub Actions workflow: re-run Block 5 and Block 6's
       existing test/eval suites stubbed, on every push (cheap, no live
       calls, no cost concern). Plus Phase 2's integration tests against
       the compose stack, using real secrets — decide that test's trigger
       scope (every push, or only `main`/PRs) since it's the one piece
       that costs real money per run.
-- [ ] Add the required secrets in the repo's GitHub Actions settings —
+- [x] Add the required secrets in the repo's GitHub Actions settings —
       only needed for the one integration test that hits the real stack.
-- [ ] Run the workflow, confirm it passes — then deliberately break one
+- [x] Run the workflow, confirm it passes — then deliberately break one
       test or eval score and confirm the build actually fails, proving
       the gate works rather than just appearing green.
-- [ ] Decide the observability view's shape (static script run on
+- [x] Decide the observability view's shape (static script run on
       demand, or a small always-on page) and build it: reuse LangSmith
       as-is for traces, surface Block 5's existing cost/token logging
       and Block 7's query-size/runtime/retry signals in one place — no
-      new tracking logic, just surfacing what already exists.
-- [ ] Write the README: architecture diagram, this spec and plan linked
+      new tracking logic, just surfacing what already exists. Partial:
+      Block 7's signals aren't included - confirmed against Block 7's
+      real repo that no such logging exists yet anywhere to surface (see
+      spec.md §5). Only Block 5's cost/token logging is surfaced; Block
+      7's signals are a "what I'd do next" item in the README.
+- [x] Write the README: architecture diagram, this spec and plan linked
       or embedded, a link to Block 7's `SECURITY.md` as "the threat
       model," an "AI-assisted workflow" note (where AI helped, where it
       was corrected, what was decided and why), a "what I'd do next"
       section, and the exact list of required `.env` variables with
-      where to get each one.
+      where to get each one. Partial: the Block 7 `SECURITY.md` link is
+      a clearly marked placeholder, not a real link - Block 7 isn't
+      finished yet, so there's nothing real to link to.
 - [ ] Pin the repo on the GitHub profile.
-- [ ] Commit the CI/CD config, the observability view, and the README as
+- [x] Commit the CI/CD config, the observability view, and the README as
       separate commits — three different concerns sharing one phase.
-- [ ] Push, open PR against `main`.
+- [ ] Push, open PR against `main`. Deviation: PR #4 targets
+      `phase-2-containerization`, not `main` - same reason as the
+      branch-off note above.

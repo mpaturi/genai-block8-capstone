@@ -1,0 +1,140 @@
+services:
+  neo4j:
+    image: neo4j:5.18-community
+    container_name: block8-neo4j
+    # Same reasoning as app/rag-service: stay up after a transient crash
+    # unless a human explicitly stopped it - missed here initially since
+    # this was added to the other two services first.
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7474:7474" # Neo4j Browser (web UI)
+      - "127.0.0.1:7687:7687" # Bolt protocol (Python driver)
+    environment:
+      - NEO4J_AUTH=${NEO4J_USER}/${NEO4J_PASSWORD}
+      - NEO4J_PLUGINS=["apoc"]
+      # Deliberately NOT named NEO4J_USER/NEO4J_PASSWORD: the official
+      # image's entrypoint auto-converts every NEO4J_*-prefixed env var
+      # into a neo4j.conf setting (that's how NEO4J_dbms_..., etc. work) -
+      # NEO4J_USER/NEO4J_PASSWORD aren't real settings, so the container
+      # fails to start ("Unrecognized setting"). These two exist only for
+      # the healthcheck's shell to read below, so they're named to avoid
+      # that conversion entirely.
+      - CYPHER_SHELL_USER=${NEO4J_USER}
+      - CYPHER_SHELL_PASSWORD=${NEO4J_PASSWORD}
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      # $$ (not $) so Compose passes the literal env var name through to
+      # the container's CMD-SHELL instead of substituting the value at
+      # parse time - substituting here would bake the plaintext password
+      # into this service's stored config (readable via `docker inspect`
+      # or `docker compose config`, and visible in the process list every
+      # interval). The container's own shell resolves $$CYPHER_SHELL_USER/
+      # $$CYPHER_SHELL_PASSWORD from its env (set explicitly above) at
+      # runtime instead, so the literal value never gets persisted
+      # anywhere.
+      test: ["CMD-SHELL", "cypher-shell -u $$CYPHER_SHELL_USER -p $$CYPHER_SHELL_PASSWORD 'RETURN 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: seeds Neo4j from Block 3's pinned, idempotent load_graph.py,
+  # then exits. Re-runs every `docker-compose up` - safe, MERGE-based.
+  graph-seed:
+    build:
+      context: .
+      dockerfile: docker/graph-seed.Dockerfile
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=${NEO4J_USER}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - NEO4J_DATABASE=${NEO4J_DATABASE:-neo4j}
+    restart: "no"
+
+  rag-service:
+    build:
+      context: .
+      dockerfile: docker/block4.Dockerfile
+    container_name: block8-rag-service
+    # unless-stopped, not on-failure: a crash and an explicit `docker
+    # compose stop`/host reboot should be treated differently. on-failure
+    # only restarts on a non-zero exit, so a container that gets OOM-killed
+    # or crashes some other way that still exits 0 (rare, but the failure
+    # mode this decision is about) wouldn't come back; unless-stopped
+    # restarts on any exit except one the operator explicitly asked for,
+    # which is the behavior actually wanted here - stay up unless a human
+    # said stop.
+    restart: unless-stopped
+    environment:
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_INDEX_NAME=${PINECONE_INDEX_NAME}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    ports:
+      - "127.0.0.1:8001:8000"
+    healthcheck:
+      # Block 4's own /docs (FastAPI's auto-generated Swagger UI, always
+      # present, no code change needed there) - only responds once
+      # uvicorn is actually serving, not just once the entrypoint script
+      # has started (which can be mid-bootstrap for up to ~1 minute).
+      test: ["CMD", "curl", "-f", "http://localhost:8000/docs"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 90s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: block8-app
+    # Same reasoning as rag-service above: stay up after a transient crash
+    # unless a human explicitly stopped it.
+    restart: unless-stopped
+    depends_on:
+      rag-service:
+        condition: service_healthy
+      graph-seed:
+        condition: service_completed_successfully
+    environment:
+      - RAG_API_URL=http://rag-service:8000
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=${NEO4J_USER}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - NEO4J_DATABASE=${NEO4J_DATABASE:-neo4j}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-true}
+      - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-block8-capstone}
+    # Bind-mounted so scripts/run_log.py's data/eval/run_log.jsonl (written
+    # relative to WORKDIR /app, i.e. /app/data/eval/run_log.jsonl) actually
+    # lands on the host instead of only existing in the container's own
+    # ephemeral filesystem - there was no volumes: entry here at all
+    # before, so this file could never reach the host under any
+    # circumstances, regardless of user/permissions. Also what lets
+    # observability/report.py read Block 6's orchestrator-level log
+    # without needing to exec into the container.
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      # app's own /health (added for CI's readiness-poll step) - only
+      # responds once uvicorn is actually serving, not just once the
+      # container is "running". start_period 30s, not rag-service's 90s:
+      # app does no Pinecone bootstrap, just imports and connects to
+      # already-healthy dependencies - depends_on above already gates it
+      # behind rag-service being healthy and graph-seed completing, so it
+      # should be ready fast.
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+volumes:
+  neo4j_data:
+  neo4j_logs:

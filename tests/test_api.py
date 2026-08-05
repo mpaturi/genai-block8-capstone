@@ -284,3 +284,18 @@ def test_query_rejects_negative_value(monkeypatch):
     response = client.post("/query", json={**VALID_QUESTION_PAYLOAD, "value": -1})
 
     assert response.status_code == 422
+
+
+def test_health_returns_ok_without_calling_block6(monkeypatch):
+    # No external calls - just confirms uvicorn is actually serving, for
+    # CI's readiness-poll step (and any future monitor) to check without
+    # needing a real question or touching Block 6/Neo4j/Pinecone at all.
+    def fail_if_called(question):
+        raise AssertionError("run_multi_agent_async should not be called by /health")
+
+    monkeypatch.setattr("app.api.run_multi_agent_async", fail_if_called)
+
+    response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
