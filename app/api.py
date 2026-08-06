@@ -13,13 +13,35 @@ import asyncio
 import logging
 
 from block5_agent.schemas import QuestionInput
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import Field, field_validator
 from scripts.orchestrator import run_multi_agent_async
 
 app = FastAPI()
 logger = logging.getLogger(__name__)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    # Overrides FastAPI's default RequestValidationError handler, which
+    # embeds each error's raw rejected value under an `input` key and
+    # re-encodes it as JSON. Starlette's JSONResponse.render() calls
+    # json.dumps(..., allow_nan=False) - so a non-finite float rejected by
+    # QueryRequest.value's ge=0/le=10_000 bound (e.g. value: Infinity)
+    # crashes at that render step with a raw, undocumented 500, even
+    # though validation itself worked correctly and rejected the value as
+    # intended. Same bug and fix as Block 4's scripts/api.py (commit
+    # 4390cf7).
+    #
+    # str(exc) safely stringifies the whole error list as plain text
+    # instead of re-encoding the rejected value as JSON, so nothing
+    # non-finite ever reaches json.dumps again. This also gives every 422
+    # from request validation this repo's own {"error": ...} response
+    # shape (see _service_unavailable_response below) instead of
+    # FastAPI's default list-of-dicts format.
+    return JSONResponse(status_code=422, content={"error": "Invalid request.", "detail": str(exc)})
 
 # Plain-language, never a raw exception message or stack trace - this is
 # the outermost layer a user touches, one level past Block 6's own
