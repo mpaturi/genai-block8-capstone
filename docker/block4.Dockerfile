@@ -51,7 +51,7 @@ WORKDIR /app
 # Block 4's own main HEAD at the time this phase was built. Bumping this
 # pin means updating the commit here, rebuilding, and re-running the
 # integration tests before merging (docs/spec.md's "Version bumps").
-ARG BLOCK4_COMMIT=dba8955f846d98fee70096978868bd8542bc82e3
+ARG BLOCK4_COMMIT=448543207428ec618f32e9d19249d02346900114
 RUN git clone https://github.com/mpaturi/genai-block4-rag-eval.git . \
     && git checkout ${BLOCK4_COMMIT}
 
