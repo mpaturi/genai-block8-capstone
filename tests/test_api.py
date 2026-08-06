@@ -286,6 +286,58 @@ def test_query_rejects_negative_value(monkeypatch):
     assert response.status_code == 422
 
 
+def test_query_rejects_infinity_value(monkeypatch):
+    # Non-finite floats must be rejected the same as any other
+    # out-of-range value (Block 4's scripts/api.py hit this same bug,
+    # fixed in commit 4390cf7 - this repo's QueryRequest.value has the
+    # identical ge=0/le=10_000 bound and needs the identical fix).
+    # Constructed as raw JSON bytes, not via client.post(json=...):
+    # httpx's own json= encoding calls json.dumps(..., allow_nan=False)
+    # and raises before the request is even sent when given
+    # float("inf"). The literal `Infinity` token in raw JSON bytes is
+    # accepted by Python's json parser (used server-side) by default, so
+    # this is the way to actually get a non-finite value into the
+    # request.
+    #
+    # Without a custom RequestValidationError handler, this 500s instead
+    # of 422ing: FastAPI's default handler embeds the rejected `inf`
+    # value in the error body and re-encodes it as JSON, and Starlette's
+    # JSONResponse.render() explicitly disallows non-finite floats
+    # (allow_nan=False), crashing at render time even though the ge/le
+    # bound itself correctly rejected the value.
+    def fail_if_called(question):
+        raise AssertionError("run_multi_agent_async should not be called for invalid input")
+
+    monkeypatch.setattr("app.api.run_multi_agent_async", fail_if_called)
+
+    body = (
+        b'{"condition": "Type 2 diabetes", "lab": "HbA1c", "comparison": "above", '
+        b'"value": Infinity, "drug_a": "metformin", "drug_b": "insulin"}'
+    )
+    response = client.post("/query", content=body, headers={"Content-Type": "application/json"})
+
+    assert response.status_code == 422
+
+
+def test_query_rejects_nan_value(monkeypatch):
+    # Same construction and reasoning as test_query_rejects_infinity_value
+    # above - httpx's json= would reject float("nan") before sending, and
+    # without the custom RequestValidationError handler this would 500
+    # rather than 422 for the same JSON-render reason.
+    def fail_if_called(question):
+        raise AssertionError("run_multi_agent_async should not be called for invalid input")
+
+    monkeypatch.setattr("app.api.run_multi_agent_async", fail_if_called)
+
+    body = (
+        b'{"condition": "Type 2 diabetes", "lab": "HbA1c", "comparison": "above", '
+        b'"value": NaN, "drug_a": "metformin", "drug_b": "insulin"}'
+    )
+    response = client.post("/query", content=body, headers={"Content-Type": "application/json"})
+
+    assert response.status_code == 422
+
+
 def test_health_returns_ok_without_calling_block6(monkeypatch):
     # No external calls - just confirms uvicorn is actually serving, for
     # CI's readiness-poll step (and any future monitor) to check without
