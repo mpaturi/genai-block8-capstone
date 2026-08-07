@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   # Re-runs Block 5's own stubbed test/eval suite, but using the single
@@ -173,11 +174,16 @@ jobs:
 
   # The one job that needs real secrets and costs real money per run
   # (live Anthropic + Pinecone calls against the assembled compose
-  # stack) - only on a push to main or a PR targeting main, not every
-  # feature-branch push. See this phase's PR description for the
-  # reasoning.
+  # stack) - scoped to real merges only, not every feature-branch push.
+  # See this phase's PR description for the reasoning.
   integration-test:
-    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    # Real pushes to main only, not every PR targeting main - this job
+    # spends real Pinecone embedding-token quota (Starter plan, 5M
+    # tokens/month) per run, so it's scoped to merges instead of burning
+    # quota on every PR iteration. Use workflow_dispatch (see this
+    # workflow's `on:` block) to run it manually pre-merge when real
+    # confidence is wanted before a PR lands.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
