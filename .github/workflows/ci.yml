@@ -3,6 +3,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 jobs:
   # Re-runs Block 5's own stubbed test/eval suite, but using the single
@@ -25,9 +26,9 @@ jobs:
         ports:
           - 7687:7687
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.11"
 
@@ -45,7 +46,7 @@ jobs:
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
       - name: Checkout genai-block5-agent (for its tests/data, not its deps)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           repository: mpaturi/genai-block5-agent
           ref: ${{ steps.block5-pin.outputs.commit }}
@@ -95,9 +96,9 @@ jobs:
         ports:
           - 7687:7687
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.11"
 
@@ -115,7 +116,7 @@ jobs:
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
       - name: Checkout genai-block6-multiagent (for its tests/data, not its deps)
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
         with:
           repository: mpaturi/genai-block6-multiagent
           ref: ${{ steps.block6-pin.outputs.commit }}
@@ -159,9 +160,9 @@ jobs:
   app-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.11"
 
@@ -173,14 +174,19 @@ jobs:
 
   # The one job that needs real secrets and costs real money per run
   # (live Anthropic + Pinecone calls against the assembled compose
-  # stack) - only on a push to main or a PR targeting main, not every
-  # feature-branch push. See this phase's PR description for the
-  # reasoning.
+  # stack) - scoped to real merges only, not every feature-branch push.
+  # See this phase's PR description for the reasoning.
   integration-test:
-    if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+    # Real pushes to main only, not every PR targeting main - this job
+    # spends real Pinecone embedding-token quota (Starter plan, 5M
+    # tokens/month) per run, so it's scoped to merges instead of burning
+    # quota on every PR iteration. Use workflow_dispatch (see this
+    # workflow's `on:` block) to run it manually pre-merge when real
+    # confidence is wanted before a PR lands.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
       - name: Build the compose stack
         env:
@@ -229,7 +235,7 @@ jobs:
             fi
           done
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
         with:
           python-version: "3.11"
 
